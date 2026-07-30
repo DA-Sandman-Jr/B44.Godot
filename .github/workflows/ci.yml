@@ -18,6 +18,6 @@ jobs:
     # core-project is omitted: that input exists for game repos with an
     # engine-free Core, which by definition this repository cannot have.
     # Omitting it builds the solution instead.
-    uses: DA-Sandman-Jr/B44.Common/.github/workflows/reusable-dotnet-ci.yml@0386611650838ed3e09294f5c895935613405ac7 # backlog reconciliation
+    uses: DA-Sandman-Jr/B44.Common/.github/workflows/reusable-dotnet-ci.yml@412aa3a3a361ce4518bfc9a4372dacddd7c175ca # .slnx support
     with:
       test-project: B44.Godot.Tests/B44.Godot.Tests.csproj
