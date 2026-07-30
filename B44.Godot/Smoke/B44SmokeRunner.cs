@@ -16,8 +16,14 @@ namespace B44.Godot.Smoke;
 ///
 /// Add it to a smoke scene, point <see cref="ProbePath"/> at the node
 /// implementing <see cref="IB44StartupProbe"/>, and list what must exist.
+///
+/// **Deliberately not sealed.** Godot binds scripts to files under
+/// <c>res://</c>, so a <see cref="Node"/> type living in a NuGet assembly
+/// cannot be attached to a scene directly. Every consuming game declares a
+/// one-line subclass in its own project purely to give the scene a script path
+/// to point at. Sealing this would make the type unusable for its only purpose.
 /// </summary>
-public sealed partial class B44SmokeRunner : Node
+public partial class B44SmokeRunner : Node
 {
     /// <summary>Node implementing <see cref="IB44StartupProbe"/>. Usually an autoload.</summary>
     [Export]
