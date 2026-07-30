@@ -1,0 +1,45 @@
+<Project>
+  <PropertyGroup>
+    <!-- Organization profile, not Game: this is a package repository, and the
+         Game profile requires its anchor to be an engine-free Core project,
+         which by definition this repository cannot have. -->
+    <B44AgentSyncEnabled>true</B44AgentSyncEnabled>
+    <B44AgentGuidanceProfile>Organization</B44AgentGuidanceProfile>
+    <B44AgentRepositoryRoot>$(MSBuildThisFileDirectory)</B44AgentRepositoryRoot>
+    <B44AgentSyncProject>$(MSBuildThisFileDirectory)B44.Godot\B44.Godot.csproj</B44AgentSyncProject>
+
+    <!-- Source-size ratchet, same anchor so both repository-wide checks run once. -->
+    <B44RatchetEnabled>true</B44RatchetEnabled>
+    <B44RatchetProject>$(MSBuildThisFileDirectory)B44.Godot\B44.Godot.csproj</B44RatchetProject>
+    <B44RatchetRepositoryRoot>$(MSBuildThisFileDirectory)</B44RatchetRepositoryRoot>
+    <B44RatchetBaseline>$(MSBuildThisFileDirectory)ratchet-baseline.txt</B44RatchetBaseline>
+
+    <!-- B44EngineFreeCore is deliberately NOT set and must never be. This is the
+         one B44 repository whose whole purpose is engine coupling; the guard
+         exists to keep it out of everywhere else.
+
+         B44Deterministic IS set. Engine coupling is not a licence for ambient
+         time or randomness — the smoke runner measures elapsed time from Godot's
+         frame delta, which is injected by the engine rather than read from the
+         ambient clock, so the rule costs nothing here. -->
+    <B44Deterministic>true</B44Deterministic>
+
+    <Nullable>enable</Nullable>
+    <!-- Shared package builds must never normalize a new warning into the
+         baseline. Consumer repositories opt into this independently. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- We generate doc files to enable IDE0005 and to ship docs for the members
+         we do document, not to document every public member. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <B44RatchetExclude Include="B44.Godot.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="B44.Standards" Version="0.8.*" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="B44.Godot.Tests/B44.Godot.Tests.csproj" />
+  <Project Path="B44.Godot/B44.Godot.csproj" />
+</Solution>

@@ -1,0 +1,155 @@
+name: B44 Godot composition smoke
+
+# Headless composition smoke test for a B44 game. Boots the project with the
+# B44SmokeRunner scene and asserts on the standardized marker and exit code.
+#
+# The marker contract is owned by B44.Godot (see SmokeEvaluation), not by this
+# workflow and not by the calling game.
+
+on:
+  workflow_call:
+    inputs:
+      godot-version:
+        description: >-
+          Godot version to install, e.g. 4.7.0. Required with no default: each
+          game owns the version it tests against, so B44.Godot never needs
+          editing when Godot releases.
+        required: true
+        type: string
+      smoke-scene:
+        description: 'Scene containing B44SmokeRunner, e.g. res://tests/Smoke.tscn'
+        required: true
+        type: string
+      project-path:
+        description: 'Directory holding project.godot, relative to the repository root.'
+        required: false
+        type: string
+        default: '.'
+      dotnet-version:
+        description: 'SDK used to build the game assembly before booting Godot.'
+        required: false
+        type: string
+        default: '10.0.x'
+      timeout-minutes:
+        description: >-
+          Job timeout. A project that fails to exit must fail the job rather
+          than hang the runner until the org-wide limit.
+        required: false
+        type: number
+        default: 10
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Verify the requested Godot version matches the project SDK
+        shell: bash
+        working-directory: ${{ inputs.project-path }}
+        run: |
+          set -euo pipefail
+          requested='${{ inputs.godot-version }}'
+          # Godot.NET.Sdk/<version> in any csproj here is the authority on what
+          # the game actually compiles against. Booting a different engine build
+          # produces failures that look like the game's fault and are not.
+          sdk="$(grep -rhoE 'Godot\.NET\.Sdk/[0-9]+\.[0-9]+\.[0-9]+' --include='*.csproj' . \
+                 | head -1 | cut -d/ -f2 || true)"
+          if [ -z "$sdk" ]; then
+            echo "No Godot.NET.Sdk reference found; skipping the compatibility check."
+            exit 0
+          fi
+          echo "Project SDK: $sdk / requested engine: $requested"
+          if [ "$sdk" != "$requested" ]; then
+            echo "::error::godot-version '$requested' does not match Godot.NET.Sdk '$sdk'." \
+                 "Booting a mismatched engine reports failures that look like the game's fault." \
+                 "Pass godot-version: '$sdk', or raise the SDK deliberately."
+            exit 1
+          fi
+
+      - name: Install Godot ${{ inputs.godot-version }} (headless)
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='${{ inputs.godot-version }}'
+          base="https://github.com/godotengine/godot/releases/download/${version}-stable"
+          zip="Godot_v${version}-stable_mono_linux_x86_64.zip"
+          curl -fsSL --retry 3 --retry-delay 5 -o godot.zip "${base}/${zip}"
+          unzip -q godot.zip
+          dir="Godot_v${version}-stable_mono_linux_x86_64"
+          echo "GODOT_BIN=$PWD/${dir}/${dir}" >> "$GITHUB_ENV"
+          chmod +x "$PWD/${dir}/${dir}"
+
+      - name: Build the game assembly
+        shell: bash
+        working-directory: ${{ inputs.project-path }}
+        run: dotnet build --configuration Debug /nodeReuse:false -p:UseSharedCompilation=false -m:1
+
+      - name: Import resources
+        shell: bash
+        working-directory: ${{ inputs.project-path }}
+        # A cold checkout has no .godot/ import cache. Without this the first
+        # real run fails on unimported resources rather than on composition,
+        # which is the failure we actually want to detect. Import is allowed to
+        # report errors; the smoke run is the gate.
+        run: timeout 300 "$GODOT_BIN" --headless --import || true
+
+      - name: Run composition smoke test
+        id: smoke
+        shell: bash
+        working-directory: ${{ inputs.project-path }}
+        run: |
+          set -uo pipefail
+          set +e
+          "$GODOT_BIN" --headless "${{ inputs.smoke-scene }}" 2>&1 | tee smoke.log
+          # tee is in the pipeline, so read Godot's status rather than tee's.
+          status="${PIPESTATUS[0]}"
+          set -e
+          echo "exit-code=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Assert marker and exit code
+        shell: bash
+        working-directory: ${{ inputs.project-path }}
+        run: |
+          set -euo pipefail
+          status='${{ steps.smoke.outputs.exit-code }}'
+
+          if grep -q 'B44_SMOKE_FAIL' smoke.log; then
+            echo "::error::Composition smoke test failed. Report:"
+            sed -n '/B44_SMOKE_FAIL/,$p' smoke.log | head -40
+            exit 1
+          fi
+
+          if ! grep -q 'B44_SMOKE_PASS' smoke.log; then
+            # No marker at all means the harness never reached its verdict: a
+            # crash, a hang killed by the job timeout, or a scene that never
+            # loaded B44SmokeRunner. Distinct from an honest failure.
+            echo "::error::No B44 smoke marker in output (exit code $status)." \
+                 "The harness never reported a verdict — the project likely crashed" \
+                 "during startup, or the smoke scene does not contain B44SmokeRunner."
+            tail -40 smoke.log
+            exit 1
+          fi
+
+          if [ "$status" != "0" ]; then
+            echo "::error::Smoke test printed a pass marker but exited $status."
+            exit 1
+          fi
+
+          echo "Composition smoke test passed."
+
+      - name: Upload smoke log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-smoke-log
+          path: ${{ inputs.project-path }}/smoke.log
+          if-no-files-found: ignore

@@ -1,0 +1,20 @@
+# Build output
+bin/
+obj/
+TestResults/
+
+# IDE
+.vs/
+.idea/
+*.user
+
+# NuGet local artifacts
+*.nupkg
+*.snupkg
+
+# Diagnostic dumps
+*.log
+
+# Local Claude Code machine/user settings. Shared agent guidance is tracked
+# via CLAUDE.md; per-machine settings are not.
+.claude/settings.local.json

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- net8.0 matches Whispers, the lowest common target across the games.
+         Raising this would strand a consumer, so it moves only when all of
+         them have. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <PackageId>B44.Godot</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>DA-Sandman-Jr</Authors>
+    <Company>B44</Company>
+    <Description>Godot-side adapters and headless composition smoke testing for B44 games. The engine-coupled counterpart to the engine-free B44.Common.</Description>
+    <RepositoryUrl>https://github.com/DA-Sandman-Jr/B44.Godot</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RootNamespace>B44.Godot</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Compile-time only. The consuming game's Godot.NET.Sdk supplies GodotSharp
+         at runtime, and forcing our version into its output would fight the SDK.
+         PrivateAssets keeps the reference from flowing to consumers. -->
+    <PackageReference Include="GodotSharp" Version="4.7.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

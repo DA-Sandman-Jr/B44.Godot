@@ -1,0 +1,23 @@
+name: ci
+
+# Format gate + solution build + tests, via the shared B44 workflow.
+#
+# Note the irony, and that it is deliberate: this repository owns the Godot
+# smoke workflow, but its OWN ci runs on a runner with no Godot installed.
+# That is the proof of a rule stated in CLAUDE.md — every pass/fail rule here
+# is free of Godot types, so the package's logic is testable without an engine.
+# The Node shell and the smoke workflow are covered by a consuming game.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    # core-project is omitted: that input exists for game repos with an
+    # engine-free Core, which by definition this repository cannot have.
+    # Omitting it builds the solution instead.
+    uses: DA-Sandman-Jr/B44.Common/.github/workflows/reusable-dotnet-ci.yml@0386611650838ed3e09294f5c895935613405ac7 # backlog reconciliation
+    with:
+      test-project: B44.Godot.Tests/B44.Godot.Tests.csproj

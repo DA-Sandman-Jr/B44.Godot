@@ -1,0 +1,3 @@
+# B44 source-size ratchet baseline. Files listed here exceed the
+# 350-line tracking threshold and may not grow past their recorded size.
+# Regenerated via: dotnet build <anchor project> -t:B44WriteRatchetBaseline
