@@ -108,7 +108,20 @@ jobs:
       - name: Build the game assembly
         shell: bash
         working-directory: ${{ inputs.project-path }}
-        run: dotnet build --configuration Debug /nodeReuse:false -p:UseSharedCompilation=false -m:1
+        run: |
+          set -euo pipefail
+          # Build the Godot project file, not the solution. Godot-generated
+          # solutions frequently define only ExportDebug/ExportRelease/Release
+          # and no plain Debug, so a solution-level `--configuration Debug`
+          # fails with MSB4126 even though the project itself builds fine —
+          # Godot.NET.Sdk defines Debug at the project level.
+          proj="$(ls *.csproj 2>/dev/null | head -1)"
+          if [ -z "$proj" ]; then
+            echo "::error::No .csproj beside project.godot in '${{ inputs.project-path }}'."
+            exit 1
+          fi
+          echo "Building $proj"
+          dotnet build "$proj" --configuration Debug /nodeReuse:false -p:UseSharedCompilation=false -m:1
 
       - name: Import resources
         shell: bash
