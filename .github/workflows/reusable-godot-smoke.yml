@@ -79,11 +79,17 @@ jobs:
         run: |
           set -euo pipefail
           version='${{ inputs.godot-version }}'
-          base="https://github.com/godotengine/godot/releases/download/${version}-stable"
-          zip="Godot_v${version}-stable_mono_linux_x86_64.zip"
+          # Godot tags a .0 release as "4.7-stable", not "4.7.0-stable" — only
+          # patches carry the third component. NuGet versions always carry all
+          # three, so Godot.NET.Sdk/4.7.0 corresponds to engine release 4.7.
+          # Normalise, or every .0 release 404s.
+          release="${version%.0}"
+          base="https://github.com/godotengine/godot/releases/download/${release}-stable"
+          zip="Godot_v${release}-stable_mono_linux_x86_64.zip"
+          echo "SDK version $version -> engine release $release"
           curl -fsSL --retry 3 --retry-delay 5 -o godot.zip "${base}/${zip}"
           unzip -q godot.zip
-          dir="Godot_v${version}-stable_mono_linux_x86_64"
+          dir="Godot_v${release}-stable_mono_linux_x86_64"
           echo "GODOT_BIN=$PWD/${dir}/${dir}" >> "$GITHUB_ENV"
           chmod +x "$PWD/${dir}/${dir}"
 
