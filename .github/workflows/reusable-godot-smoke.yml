@@ -138,8 +138,17 @@ jobs:
         working-directory: ${{ inputs.project-path }}
         run: |
           set -uo pipefail
+          # Godot's CLI scene argument is a project-relative FILE path, not a
+          # res:// URI. Passing res:// is accepted silently and then ignored:
+          # the engine prints its banner, starts no scene at all, and sits
+          # until the job timeout kills it. The input stays res://-shaped
+          # because that is how the path is written everywhere else in a Godot
+          # project; the prefix is stripped here.
+          scene='${{ inputs.smoke-scene }}'
+          scene="${scene#res://}"
+          echo "Running scene: $scene"
           set +e
-          "$GODOT_BIN" --headless "${{ inputs.smoke-scene }}" 2>&1 | tee smoke.log
+          "$GODOT_BIN" --headless --quit-after 3000 "$scene" 2>&1 | tee smoke.log
           # tee is in the pipeline, so read Godot's status rather than tee's.
           status="${PIPESTATUS[0]}"
           set -e
