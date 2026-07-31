@@ -32,16 +32,46 @@ Serial dependency to plan for: this package must be created, packaged, published
 to nuget.org, and consumed before a game can adopt the harness — the same
 publish-then-migrate cycle the `B44.Standards` 0.8.x work used.
 
-**Unverified until this happens.** Everything below is reasoned, not observed:
+#### First real run against Whispers, 2026-07-31 — four defects found, one open
 
-- That `GodotSharp` as a `PrivateAssets="all"` compile-time reference coexists
-  cleanly with a consuming game's `Godot.NET.Sdk` at runtime.
-- That the workflow's Godot download URL and archive layout are correct for
-  4.7.0 — the mono Linux x86_64 naming has changed between Godot releases before.
-- That `--headless --import` on a cold checkout leaves the project in a state
-  where the smoke scene loads.
-- That `GetTree().Quit(code)` surfaces as the process exit code under
-  `--headless`, which the marker check partly compensates for but does not prove.
+Every item previously listed here as unproven has now been tested against a real
+game. Four were wrong, in ways no amount of local review would have caught:
+
+1. **Download URL 404'd.** Godot tags a `.0` release as `4.7-stable`, not
+   `4.7.0-stable` — only patches carry the third component — while NuGet
+   versions always carry three. `Godot.NET.Sdk/4.7.0` means engine release
+   `4.7`. Note the SDK-compatibility check ran and *passed* immediately before:
+   the strings agreed while denoting different things.
+2. **Binary name was reconstructed wrongly.** The archive extracts a folder
+   using `_x86_64` containing a binary using `.x86_64` — underscore in one, dot
+   in the other. Now located by search rather than reconstruction, because
+   guessing failed twice.
+3. **Building the solution failed with MSB4126.** Godot-generated solutions
+   define only `ExportDebug`, `ExportRelease`, and `Release` — no plain `Debug`
+   at solution level. The project file does define it, so the workflow builds
+   the csproj beside `project.godot`.
+4. **The scene argument must be a project-relative file path, not `res://`.** A
+   `res://` argument is accepted silently and ignored: the engine printed its
+   banner, started no scene, and idled until the job timeout killed it. Ten
+   minutes of output was one line.
+
+**Confirmed working:** `GodotSharp` as a `PrivateAssets="all"` compile-time
+reference coexists fine with the game's `Godot.NET.Sdk`; cold-checkout
+`--headless --import` succeeds; the job timeout correctly kills a hung engine.
+
+**Still open — the engine aborts.** With the scene path fixed, Godot reaches the
+scene and dies with **exit 134 (SIGABRT)**, and the captured log contains only
+the version banner, so the cause is not yet visible. Instrumentation is now in
+place for the next attempt: `--verbose`, `stdbuf` to defeat block buffering
+(which is why output vanished when the process died rather than exited), and
+explicit signal reporting so a crash is not misreported as a missing marker.
+
+**Leading hypothesis, untested:** the hand-written `tests/Smoke/Smoke.tscn` in
+Whispers. It was authored by hand rather than saved by the Godot editor, and a
+malformed scene or a script that fails to attach is the most likely cause of an
+abort this early. Opening the project once in the editor and re-saving the scene
+would settle it. Diagnosing this properly wants a local Godot install; blind CI
+iteration was stopped deliberately at that point.
 
 ### 2. Migrate the shared engine-side adapters (B44.Common backlog entry 1B)
 
