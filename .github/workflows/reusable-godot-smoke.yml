@@ -148,7 +148,12 @@ jobs:
           scene="${scene#res://}"
           echo "Running scene: $scene"
           set +e
-          "$GODOT_BIN" --headless --quit-after 3000 "$scene" 2>&1 | tee smoke.log
+          # --verbose because a crash here otherwise leaves nothing to work
+          # with: a SIGABRT produced a log containing only the version banner,
+          # which is indistinguishable from the engine doing nothing at all.
+          # stdbuf defeats block buffering, which is why output is lost when
+          # the process dies rather than exits.
+          stdbuf -oL -eL "$GODOT_BIN" --headless --verbose --quit-after 3000 "$scene" 2>&1 | tee smoke.log
           # tee is in the pipeline, so read Godot's status rather than tee's.
           status="${PIPESTATUS[0]}"
           set -e
@@ -165,6 +170,15 @@ jobs:
           if grep -q 'B44_SMOKE_FAIL' smoke.log; then
             echo "::error::Composition smoke test failed. Report:"
             sed -n '/B44_SMOKE_FAIL/,$p' smoke.log | head -40
+            exit 1
+          fi
+
+          # 134 is SIGABRT, 139 SIGSEGV — the engine died rather than exited,
+          # so name that instead of reporting a missing marker, which sounds
+          # like a configuration problem and is not.
+          if [ "$status" -gt 128 ] 2>/dev/null; then
+            echo "::error::Godot terminated on signal $((status - 128)) (exit $status)."                  "This is an engine crash, not a failed assertion. Last output:"
+            tail -60 smoke.log
             exit 1
           fi
 
