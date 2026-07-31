@@ -5,12 +5,17 @@
          them have. -->
     <TargetFramework>net8.0</TargetFramework>
     <PackageId>B44.Godot</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Authors>DA-Sandman-Jr</Authors>
-    <Company>B44</Company>
+    <Company>B44 Labs</Company>
     <Description>Godot-side adapters and headless composition smoke testing for B44 games. The engine-coupled counterpart to the engine-free B44.Common.</Description>
     <RepositoryUrl>https://github.com/DA-Sandman-Jr/B44.Godot</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- All rights reserved is not an SPDX identifier, so the licence travels
+         as a bundled file rather than an expression. Also stops nuget.org
+         warning "License missing" on every publish. -->
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <Copyright>Copyright (c) 2026 David Sanders (B44 Labs). All rights reserved.</Copyright>
     <RootNamespace>B44.Godot</RootNamespace>
     <LangVersion>latest</LangVersion>
     <EnableDynamicLoading>true</EnableDynamicLoading>
@@ -25,5 +30,6 @@
 
   <ItemGroup>
     <None Include="../README.md" Pack="true" PackagePath="\" />
+    <None Include="../LICENSE" Pack="true" PackagePath="\" />
   </ItemGroup>
 </Project>
