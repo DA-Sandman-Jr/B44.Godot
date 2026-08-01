@@ -5,7 +5,7 @@
          them have. -->
     <TargetFramework>net8.0</TargetFramework>
     <PackageId>B44.Godot</PackageId>
-    <Version>0.3.0</Version>
+    <Version>0.3.1</Version>
     <Authors>DA-Sandman-Jr</Authors>
     <Company>B44 Labs</Company>
     <Description>Godot-side adapters and headless composition smoke testing for B44 games. The engine-coupled counterpart to the engine-free B44.Common.</Description>
@@ -40,6 +40,11 @@
          at runtime, and forcing our version into its output would fight the SDK.
          PrivateAssets keeps the reference from flowing to consumers. -->
     <PackageReference Include="GodotSharp" Version="4.7.0" PrivateAssets="all" />
+
+    <!-- The engine-free half. This package is its Godot-side counterpart, so the
+         dependency runs one way only: B44.Common never references this. Bounded
+         float, like every internal B44 reference. -->
+    <PackageReference Include="B44.Common" Version="0.9.*" />
 
     <!-- Godot's source generators ship inside Godot.NET.Sdk, which this package
          deliberately does not use — so without this reference they never run

@@ -149,24 +149,40 @@ CI — which is exactly the class of bug a composition smoke test exists for.
 
 ### 2. Migrate the shared engine-side adapters (B44.Common backlog entry 1B)
 
-**Status:** Planned, after entry 1 above is working. Deliberately not bundled
-into standing the repository up.
+**Status:** Package side done in 0.3.1; games adopt next.
 
-- **Godot logger sink factory** — present in all three games, behaviorally
-  identical (verified 2026-07-29); the diffs are an `if`-chain vs a `switch`.
-- **`NodePathValidator`** — in TicTacHoe (49 lines) and Whispers (48). Take
-  **TicTacHoe's**: it throws a descriptive `InvalidOperationException` where
-  Whispers throws a bare `ArgumentNullException`. Time Machine Clicker has no copy.
-- **The `GD.PushWarning` warning sink** passed to
-  `RepositoryFactory.CreateWithFallback`.
+Landed here:
+
+- **`Diagnostics/GodotLoggerFactory`** — the Godot sink for the engine-free
+  `StructuredGameLogger`, plus a named `PushWarning` for
+  `RepositoryFactory.CreateWithFallback`'s `onWarning`. All three games carried an
+  equivalent. The `if`-chain form won over the `switch`: the switch matched
+  `LogSeverity.Error` exactly, which is only equivalent because `Error` is
+  currently the highest severity.
+- **`Configuration/NodePathValidator`** — TicTacHoe's copy, which raises a
+  descriptive `InvalidOperationException` where Whispers raised a bare
+  `ArgumentNullException`. **One deliberate change:** a missing node is now
+  reported with `GD.PushError` rather than `GD.PrintErr`, because only the error
+  channel is visible to `B44SmokeRunner`. With the old call a renamed node printed
+  a line nobody read and the smoke test still passed.
+
+Shipped as a patch, not a minor: it is purely additive and nothing changes for a
+consumer until it opts in by deleting its local copy. That opt-in is where the
+`PushError` behaviour change takes effect, which is the right place for it to be
+visible.
+
+Remaining: the three games delete their local copies. Time Machine Clicker has no
+`NodePathValidator`, so it takes only the logger factory.
+
+**Still open, and worth doing after the games migrate:** now that the validator
+lives here, `B44SmokeRunner` could validate a game's declared paths by reflecting
+over its `*Paths` resources instead of taking the hand-maintained string list it
+uses today. TicTacHoe already does exactly that by hand in its runner, which is
+the proof the idea works.
 
 Do **not** reintroduce the GD0102 `global using` workaround. Godot 4.7 marshals
 cross-assembly enums into `[Export]` properties correctly, verified 2026-07-29
 by reading generated `ScriptProperties` source.
-
-Once `NodePathValidator` lives here, the harness can validate declared paths
-through it by reflection over a game's `*Paths.cs` types, rather than the
-string list `B44SmokeRunner` takes today.
 
 ---
 
