@@ -174,11 +174,16 @@ visible.
 Remaining: the three games delete their local copies. Time Machine Clicker has no
 `NodePathValidator`, so it takes only the logger factory.
 
-**Still open, and worth doing after the games migrate:** now that the validator
-lives here, `B44SmokeRunner` could validate a game's declared paths by reflecting
-over its `*Paths` resources instead of taking the hand-maintained string list it
-uses today. TicTacHoe already does exactly that by hand in its runner, which is
-the proof the idea works.
+**Done in 0.3.2.** `B44SmokeRunner.DeclaredPathConfigurations` takes `*Paths`
+resources paired with the nodes that own them, and validates them at verdict
+time through `NodePathValidator.FindMissingNodePaths`. The literal
+`RequiredNodePaths` list stays for absolute paths that no resource describes.
+
+The new `FindMissingNodePaths` returns misses rather than reporting them, so one
+description of what a scene requires serves both uses: a game validates at
+runtime and gets errors, while the harness reports the same misses as
+`UnresolvedNodePath` — the outcome that names the problem — instead of the
+generic engine-error bucket a pushed error lands in.
 
 Do **not** reintroduce the GD0102 `global using` workaround. Godot 4.7 marshals
 cross-assembly enums into `[Export]` properties correctly, verified 2026-07-29
