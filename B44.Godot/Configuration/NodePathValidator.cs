@@ -43,9 +43,28 @@ public static class NodePathValidator
 
     /// <summary>
     /// Validates every <c>[Export] NodePath</c> property on a paths resource
-    /// against the node that owns it.
+    /// against the node that owns it, reporting each miss as an error.
     /// </summary>
     public static void ValidateExportedNodePaths(Node owner, object pathConfiguration)
+    {
+        foreach (string missing in FindMissingNodePaths(owner, pathConfiguration))
+        {
+            GD.PushError($"{owner.Name} is missing required node: {missing}");
+        }
+    }
+
+    /// <summary>
+    /// Returns the declared paths that do not resolve, as
+    /// <c>PropertyName at 'path'</c>, instead of reporting them.
+    /// </summary>
+    /// <remarks>
+    /// Exists so one description of "what this paths resource requires" serves
+    /// both uses: a game validates at runtime and gets errors, while the smoke
+    /// harness collects the same misses and reports them as
+    /// <c>UnresolvedNodePath</c> — the outcome that names the actual problem,
+    /// rather than the generic engine-error bucket a pushed error would land in.
+    /// </remarks>
+    public static IReadOnlyList<string> FindMissingNodePaths(Node owner, object pathConfiguration)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(pathConfiguration);
@@ -56,6 +75,8 @@ public static class NodePathValidator
             .Where(property => property.PropertyType == typeof(NodePath))
             .Where(property => property.GetCustomAttribute<ExportAttribute>() != null);
 
+        var missing = new List<string>();
+
         foreach (PropertyInfo property in exportedNodePathProperties)
         {
             if (property.GetValue(pathConfiguration) is not NodePath path)
@@ -64,7 +85,12 @@ public static class NodePathValidator
                     $"{pathConfiguration.GetType().Name}.{property.Name} must be a non-null NodePath.");
             }
 
-            AssertHasNode(owner, path, property.Name);
+            if (!owner.HasNode(path))
+            {
+                missing.Add($"{property.Name} at '{path}'");
+            }
         }
+
+        return missing;
     }
 }

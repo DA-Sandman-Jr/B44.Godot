@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using B44.Godot.Configuration;
 using Godot;
 
 namespace B44.Godot.Smoke;
@@ -46,6 +47,18 @@ public partial class B44SmokeRunner : Node
 
     /// <summary>Absolute node paths that must resolve once startup reports Ready.</summary>
     protected virtual string[] RequiredNodePaths => [];
+
+    /// <summary>
+    /// Paths resources to validate against the nodes that own them, checked at
+    /// verdict time so a game can declare scenes it composed during startup.
+    /// </summary>
+    /// <remarks>
+    /// Preferred over <see cref="RequiredNodePaths"/> wherever a game already has
+    /// a <c>*Paths</c> resource: that resource is the contract the scene code
+    /// actually uses, so validating it directly cannot drift, while a
+    /// hand-maintained string list silently goes stale the moment a path changes.
+    /// </remarks>
+    protected virtual IEnumerable<DeclaredPathConfiguration> DeclaredPathConfigurations => [];
 
     /// <summary>
     /// How long to wait for a verdict. The workflow also enforces a job-level
@@ -108,7 +121,7 @@ public partial class B44SmokeRunner : Node
             State = probe.State,
             FailureDiagnostics = probe.FailureDiagnostics,
             MissingAutoloads = FindMissing(RequiredAutoloads, name => $"/root/{name.TrimStart('/')}"),
-            UnresolvedNodePaths = FindMissing(RequiredNodePaths, path => path),
+            UnresolvedNodePaths = CollectUnresolvedNodePaths(),
             EngineErrors = _errorCollector.Errors,
             TimedOut = timedOut,
         }));
@@ -116,6 +129,30 @@ public partial class B44SmokeRunner : Node
 
     private IB44StartupProbe? ResolveProbe() =>
         string.IsNullOrEmpty(ProbeNodePath) ? null : GetNodeOrNull(ProbeNodePath) as IB44StartupProbe;
+
+    /// <summary>
+    /// Combines the literal path list with everything the declared paths
+    /// resources require, so both arrive as one <c>UnresolvedNodePath</c> result.
+    /// </summary>
+    private List<string> CollectUnresolvedNodePaths()
+    {
+        List<string> unresolved = FindMissing(RequiredNodePaths, path => path);
+
+        foreach (DeclaredPathConfiguration declared in DeclaredPathConfigurations)
+        {
+            if (declared.Owner is null || declared.Configuration is null)
+            {
+                continue;
+            }
+
+            foreach (string missing in NodePathValidator.FindMissingNodePaths(declared.Owner, declared.Configuration))
+            {
+                unresolved.Add($"{declared.Owner.Name}.{missing}");
+            }
+        }
+
+        return unresolved;
+    }
 
     private List<string> FindMissing(IEnumerable<string> declared, Func<string, string> toAbsolutePath) =>
         declared
@@ -141,3 +178,14 @@ public partial class B44SmokeRunner : Node
         GetTree().Quit(result.ExitCode);
     }
 }
+
+/// <summary>
+/// A <c>*Paths</c> resource paired with the node it describes, for
+/// <see cref="B44SmokeRunner.DeclaredPathConfigurations"/>.
+/// </summary>
+/// <param name="Owner">The node the paths are relative to.</param>
+/// <param name="Configuration">
+/// An object with <c>[Export] NodePath</c> properties — typically a game's
+/// <c>*Paths</c> <see cref="Resource"/>.
+/// </param>
+public readonly record struct DeclaredPathConfiguration(Node Owner, object Configuration);
