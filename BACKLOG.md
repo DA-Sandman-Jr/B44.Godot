@@ -127,21 +127,25 @@ reference coexists with the game's `Godot.NET.Sdk`; cold-checkout
 
 Re-tested against 0.2.1. The earlier reading — that Whispers simply does not
 survive headless startup — was made while the harness itself was broken, and it
-was wrong. The run now reaches a verdict and reports:
+was wrong. The run reached a verdict and reported that `SessionCoordinator` could
+not resolve `QuestLog`, warning that the facade would return plausible defaults
+able to reach a save file.
 
-> SessionCoordinator could not resolve: QuestLog at `/root/QuestLog`. Calls
-> through this facade would return plausible defaults (floor 0, default branch,
-> title location) that can reach a save file.
+**Root cause, and a correction.** This backlog first attributed it to autoload
+declaration order. That was wrong. Godot binds one class per script file, matching
+the filename, and `QuestLog` was declared inside `QuestState.cs` — so
+`/root/QuestLog` was a `QuestState` node wearing the name, and every
+`GetNodeOrNull<QuestLog>` in that game returned null permanently. Fixed by giving
+the type its own file; the rule is now recorded in `CLAUDE.md` as a B44 standard.
 
-`SessionCoordinator` is autoload #3 and `QuestLog` is #7, and Godot registers
-autoloads in declaration order. A silent facade returning defaults that can reach
-a save file is precisely what this harness was built to detect, and it found one
-on the first run that worked.
+Composition now passes in Whispers. The job stays red on a separate teardown
+signal 11, owned by
+[Whispers' backlog](https://github.com/DA-Sandman-Jr/WhispersOfTheEarth/blob/main/BACKLOG.md),
+and its workflow stays `workflow_dispatch` until that is fixed.
 
-Owned by [Whispers' backlog](https://github.com/DA-Sandman-Jr/WhispersOfTheEarth/blob/main/BACKLOG.md),
-not this one. Its workflow stays `workflow_dispatch` until the defect is fixed.
-The engine does still take signal 11 during teardown, after the marker prints —
-real, secondary, recorded there.
+**Worth keeping:** the harness earned its existence here. It found a silent,
+long-standing defect that no test caught, in a game that builds clean and passes
+CI — which is exactly the class of bug a composition smoke test exists for.
 
 ### 2. Migrate the shared engine-side adapters (B44.Common backlog entry 1B)
 

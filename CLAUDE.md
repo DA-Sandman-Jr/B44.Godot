@@ -120,6 +120,38 @@ beforehand produced three confident hypotheses and all three were wrong. When
 Godot behaviour is inexplicable, check what was generated before theorising about
 the engine.
 
+## One Godot Type Per Script File — B44 Standard
+
+**A Godot type registered as an autoload or attached to a `.tscn` must be the only
+Godot type in its file, and the file must be named after it.**
+
+Godot binds exactly one class per script file: the one whose name matches the
+file. Every other Godot type sharing that file receives no `ScriptPath` and
+becomes unbindable — with no error and no warning, at build time or run time. The
+node still gets created and still carries the name you gave it; it is simply the
+wrong type. `GetNodeOrNull<T>` then returns null forever, and typical defensive
+null-handling turns that into silent degradation rather than a crash.
+
+Found in Whispers 2026-08-01: `QuestLog` was declared inside `QuestState.cs`, so
+`/root/QuestLog` was a `QuestState` node named `QuestLog`. Every
+`GetNodeOrNull<QuestLog>` in the game returned null, which silently disabled
+quest-driven autosave. It had been that way undetected.
+
+This does **not** overturn B44's multi-type file style — `MA0048` stays off and
+sanctioned multi-type files remain fine. Engine-bound types are the exception,
+because the engine cannot bind them otherwise.
+
+Verify with the generated `*_ScriptPath.generated.cs` when in doubt. A type that
+should be bindable and has no `ScriptPath` is the bug, and that check takes one
+build.
+
+**Note what did NOT cause this**, since it was the first and wrong diagnosis:
+autoload declaration order. All autoloads are added to `/root` before any `_Ready`
+runs, so an autoload can resolve one declared after it. Order only matters when
+one autoload calls *methods* on another during `_Ready` and depends on that
+other's `_Ready` having completed. Confirmed by testing the real fix with the
+declaration order untouched.
+
 ## Layout
 
 - `B44.Godot/Smoke/` — the composition smoke harness. `SmokeContract.cs` and
