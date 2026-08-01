@@ -18,22 +18,22 @@ repository's share.
 
 ### 1. Adopt the smoke workflow in a real game
 
-**Status:** Done for the first consumer, 2026-08-01. Time Machine Clicker runs
-it on every push and pull request and it passes end to end: `_Ready` fires, the
-probe resolves, both autoloads are verified, `B44_SMOKE_PASS outcome=Passed` is
-emitted, and the workflow asserts on it. TMC was the right first consumer —
-`GameRoot` is a real composition root, while TicTacHoe's autoloads are only theme
-and input initialisers.
+**Status: Done, 2026-08-01.** Two games run it, and deliberately in two different
+shapes — which is what makes it proven rather than merely working once.
 
-Remaining: TicTacHoe has not adopted it, and Whispers is blocked on its own
-headless crash (below). The entry stays open until at least one more game runs
-it, since a harness proven against exactly one project has proven less than it
-looks.
+- **Time Machine Clicker** probes `GameRoot`, a composition-root autoload. The
+  harness observes something else doing the composing.
+- **TicTacHoe** has no composition root — its two autoloads are a theme applier
+  and an input-map augmenter — so the runner performs the composition itself and
+  acts as its own probe, instantiating the main menu and validating it against
+  the node paths `MainMenuPaths` declares.
 
-Getting here took two package fixes, six workflow fixes, and — the part worth
-keeping — a change in method. Everything below the workflow list was found by
-reading generated sources locally. Everything above it cost a CI round trip
-each.
+Both pass on every push and pull request. Whispers is the third consumer and is
+blocked on a real defect the harness found in it; that work is owned by Whispers'
+backlog, not this one.
+
+The durable rules learned here are recorded in `CLAUDE.md`. What follows is the
+evidence, kept because the failures were silent and would otherwise be rediscovered.
 
 #### Root cause of the harness never running, 2026-08-01 — cross-assembly `[Export]`
 
@@ -168,8 +168,26 @@ string list `B44SmokeRunner` takes today.
 
 ## Known Defects
 
-None currently recorded — nothing has run against a real game yet, which is
-entry 1 above rather than a defect.
+### `SmokeObservation.EngineErrors` is never populated
+
+`B44SmokeRunner._engineErrors` is declared and read into every observation, and
+nothing ever writes to it. So `SmokeOutcome.EngineError` cannot occur, and the
+comment on `_Ready` claiming the harness scrapes Godot's print handlers describes
+behaviour that does not exist. `CLAUDE.md`'s contract section has been corrected;
+the code has not.
+
+This is not cosmetic. It is the gap that makes a partial failure inside a child's
+`_Ready` invisible: Godot catches managed exceptions at the marshalling boundary
+and prints them rather than propagating, so without scraping that output the
+harness cannot see them. TicTacHoe works around it by validating node paths
+itself before `AddChild` — a workaround that only exists because of this gap.
+
+Fixing it needs a way to observe engine output from C#. Confirm what Godot 4.7
+actually exposes before designing: this is exactly the kind of assumption that
+has already been wrong twice here.
+
+Either populate it or delete it. A contract field that is always empty is worse
+than no field, because it reads as coverage that is not there.
 
 ---
 

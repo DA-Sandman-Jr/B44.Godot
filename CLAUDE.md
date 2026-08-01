@@ -77,8 +77,10 @@ Four steps, deliberately four abstractions and not two:
 
 1. The **game** exposes `Initializing` / `Ready` / `Failed` plus diagnostics, by
    implementing `IB44StartupProbe`. It owns its own lifecycle vocabulary.
-2. The **harness** (`B44SmokeRunner`) observes that, checks required autoloads
-   and declared node paths, and captures engine errors.
+2. The **harness** (`B44SmokeRunner`) observes that and checks required
+   autoloads and declared node paths. (`SmokeObservation.EngineErrors` exists in
+   the contract but is never populated — see the backlog. Do not describe the
+   harness as capturing engine errors until it does.)
 3. The harness emits one standardized **marker line** and a human-readable
    report, then quits with a deterministic exit code.
 4. The **workflow** asserts on the marker and the exit code.
@@ -86,6 +88,37 @@ Four steps, deliberately four abstractions and not two:
 Collapsing steps 1 and 3 into "the same signal" is the mistake to avoid: the
 game's state is its own concern, and the marker is a CI artifact. They must
 agree, not be identical.
+
+## Shipping a Godot `Node` in a NuGet Package — Decision Record
+
+This is not the ordinary case, and Godot's tooling assumes the ordinary case in
+two ways that both fail silently. Both cost a full debugging cycle in 0.1.x, and
+both are load-bearing — changing either re-breaks the harness with no error
+message anywhere.
+
+1. **The source generators ship inside `Godot.NET.Sdk`, not `GodotSharp`.** This
+   package builds on `Microsoft.NET.Sdk`, so it must reference
+   `Godot.SourceGenerators` explicitly, as an analyzer. Without it the build
+   emits zero generated files and a `Node` declared here gets no
+   `InvokeGodotClassMethod` override — which is how the engine dispatches
+   `_Ready` and `_Process` to C#. Overridden callbacks are simply never called.
+   A consuming game's generator does not cover the gap; it only sees the game's
+   own declarations. `ScriptPathAttribute` is disabled because nothing here lives
+   under `res://` and it hard-fails without `GodotProjectDir`.
+
+2. **Never configure through `[Export]` on a type consumers inherit.** Inherited
+   exports are not marshalled across an assembly boundary: the game subclass's
+   generated `ScriptProperties` has no entry for them, and a scene that sets them
+   fails to instantiate with no error printed. Configuration is expressed as
+   `protected virtual` members a game overrides. That costs a game a few lines
+   instead of one, and it works.
+
+**The general rule this leaves behind: read the generated sources.** Both
+findings came from building with `EmitCompilerGeneratedFiles` and looking —
+locally, in one build, no Godot install required. Several rounds of CI iteration
+beforehand produced three confident hypotheses and all three were wrong. When
+Godot behaviour is inexplicable, check what was generated before theorising about
+the engine.
 
 ## Layout
 
