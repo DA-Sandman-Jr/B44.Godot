@@ -54,15 +54,19 @@ public partial class B44SmokeRunner : Node
     /// </summary>
     protected virtual double TimeoutSeconds => 30.0;
 
-    private readonly List<string> _engineErrors = [];
+    private readonly SmokeErrorCollector _errorCollector = new();
     private double _elapsed;
     private bool _finished;
 
     public override void _Ready()
     {
-        // Godot reports engine-level problems through the print handlers rather
-        // than exceptions, so scrape them; an autoload that threw during its own
-        // _Ready leaves evidence here and nowhere else.
+        // Godot reports engine-level problems through its logger rather than as
+        // exceptions — a managed exception inside a child's _Ready is caught at
+        // the marshalling boundary and printed. Registering here is what lets the
+        // harness see those at all. See SmokeErrorCollector for what this can and
+        // cannot observe.
+        OS.AddLogger(_errorCollector);
+
         GD.PrintErr($"[B44SmokeRunner] armed; waiting up to {TimeoutSeconds:0.##}s for a startup verdict.");
     }
 
@@ -88,7 +92,7 @@ public partial class B44SmokeRunner : Node
                 TimedOut = true,
                 FailureDiagnostics =
                     $"No node implementing IB44StartupProbe at ProbeNodePath '{ProbeNodePath}'.",
-                EngineErrors = _engineErrors,
+                EngineErrors = _errorCollector.Errors,
             }));
             return;
         }
@@ -105,7 +109,7 @@ public partial class B44SmokeRunner : Node
             FailureDiagnostics = probe.FailureDiagnostics,
             MissingAutoloads = FindMissing(RequiredAutoloads, name => $"/root/{name.TrimStart('/')}"),
             UnresolvedNodePaths = FindMissing(RequiredNodePaths, path => path),
-            EngineErrors = _engineErrors,
+            EngineErrors = _errorCollector.Errors,
             TimedOut = timedOut,
         }));
     }
@@ -122,6 +126,11 @@ public partial class B44SmokeRunner : Node
     private void Finish(SmokeResult result)
     {
         _finished = true;
+
+        // Unregister before printing. The report and marker go through GD.Print,
+        // and leaving the collector attached while reporting a failure would let
+        // the harness observe its own output.
+        OS.RemoveLogger(_errorCollector);
 
         // The report goes to stdout for a human; the marker is the single line
         // the workflow asserts on. Both, always — a failure with no explanation
