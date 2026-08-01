@@ -14,8 +14,9 @@ namespace B44.Godot.Smoke;
 /// so it can be tested without an engine; this type only gathers observations
 /// from the scene tree and applies the verdict.
 ///
-/// Add it to a smoke scene, point <see cref="ProbePath"/> at the node
-/// implementing <see cref="IB44StartupProbe"/>, and list what must exist.
+/// A game subclasses this, overrides <see cref="ProbeNodePath"/> and
+/// <see cref="RequiredAutoloads"/>, and attaches the subclass to a scene whose
+/// only content is that script.
 ///
 /// **Deliberately not sealed.** Godot binds scripts to files under
 /// <c>res://</c>, so a <see cref="Node"/> type living in a NuGet assembly
@@ -25,25 +26,33 @@ namespace B44.Godot.Smoke;
 /// </summary>
 public partial class B44SmokeRunner : Node
 {
-    /// <summary>Node implementing <see cref="IB44StartupProbe"/>. Usually an autoload.</summary>
-    [Export]
-    public NodePath ProbePath { get; set; } = new();
+    // Configuration is expressed by overriding these, NOT with [Export].
+    //
+    // Godot's source generator does not marshal [Export] properties inherited
+    // from a base class in another assembly: the generated ScriptProperties for
+    // a game's subclass contains no entry for them. A scene that then sets
+    // those properties fails to instantiate, silently — the scene resource
+    // loads, no node is created, no _Ready runs, and the engine simply waits.
+    // Verified 2026-08-01 by reading the generated sources for a real consumer.
+    //
+    // Plain virtual members cost a game a few lines instead of one, and they
+    // work.
+
+    /// <summary>Path to the node implementing <see cref="IB44StartupProbe"/>. Usually an autoload.</summary>
+    protected virtual string ProbeNodePath => string.Empty;
 
     /// <summary>Autoload names that must be present, without the leading slash.</summary>
-    [Export]
-    public string[] RequiredAutoloads { get; set; } = [];
+    protected virtual string[] RequiredAutoloads => [];
 
     /// <summary>Absolute node paths that must resolve once startup reports Ready.</summary>
-    [Export]
-    public string[] RequiredNodePaths { get; set; } = [];
+    protected virtual string[] RequiredNodePaths => [];
 
     /// <summary>
     /// How long to wait for a verdict. The workflow also enforces a job-level
     /// timeout; this one exists so the run fails with a readable marker instead
     /// of being killed by the runner.
     /// </summary>
-    [Export]
-    public double TimeoutSeconds { get; set; } = 30.0;
+    protected virtual double TimeoutSeconds => 30.0;
 
     private readonly List<string> _engineErrors = [];
     private double _elapsed;
@@ -78,7 +87,7 @@ public partial class B44SmokeRunner : Node
             {
                 TimedOut = true,
                 FailureDiagnostics =
-                    $"No node implementing IB44StartupProbe at ProbePath '{ProbePath}'.",
+                    $"No node implementing IB44StartupProbe at ProbeNodePath '{ProbeNodePath}'.",
                 EngineErrors = _engineErrors,
             }));
             return;
@@ -102,7 +111,7 @@ public partial class B44SmokeRunner : Node
     }
 
     private IB44StartupProbe? ResolveProbe() =>
-        ProbePath.IsEmpty ? null : GetNodeOrNull(ProbePath) as IB44StartupProbe;
+        string.IsNullOrEmpty(ProbeNodePath) ? null : GetNodeOrNull(ProbeNodePath) as IB44StartupProbe;
 
     private List<string> FindMissing(IEnumerable<string> declared, Func<string, string> toAbsolutePath) =>
         declared
