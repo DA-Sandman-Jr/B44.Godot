@@ -123,18 +123,25 @@ Six, all fixed, all invisible to local review:
 reference coexists with the game's `Godot.NET.Sdk`; cold-checkout
 `--headless --import` succeeds; the job timeout kills a hung engine.
 
-#### Whispers is blocked on its own headless crash
+#### Whispers: the harness found a real bug on its first honest run
 
-With all six workflow defects fixed, Whispers segfaults (signal 11) in
-`libcoreclr` during autoload initialisation, before the main scene is
-instantiated. `FlowCoordinator` eagerly preloads `Title.tscn`, `Dungeon.tscn`,
-and `TurnManager.cs` during its own startup, which is the obvious suspect.
+Re-tested against 0.2.1. The earlier reading — that Whispers simply does not
+survive headless startup — was made while the harness itself was broken, and it
+was wrong. The run now reaches a verdict and reports:
 
-That crash predates the `[Export]` finding and is not explained by it, so it
-stands as a genuine finding: **Whispers does not survive headless startup**,
-which is exactly what a composition smoke test exists to detect. Its workflow is
-parked as `workflow_dispatch` so a known-failing job does not sit red on every
-push. Investigating wants someone who can run Godot headless locally.
+> SessionCoordinator could not resolve: QuestLog at `/root/QuestLog`. Calls
+> through this facade would return plausible defaults (floor 0, default branch,
+> title location) that can reach a save file.
+
+`SessionCoordinator` is autoload #3 and `QuestLog` is #7, and Godot registers
+autoloads in declaration order. A silent facade returning defaults that can reach
+a save file is precisely what this harness was built to detect, and it found one
+on the first run that worked.
+
+Owned by [Whispers' backlog](https://github.com/DA-Sandman-Jr/WhispersOfTheEarth/blob/main/BACKLOG.md),
+not this one. Its workflow stays `workflow_dispatch` until the defect is fixed.
+The engine does still take signal 11 during teardown, after the marker prints —
+real, secondary, recorded there.
 
 ### 2. Migrate the shared engine-side adapters (B44.Common backlog entry 1B)
 
