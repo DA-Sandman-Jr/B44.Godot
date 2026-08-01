@@ -51,6 +51,41 @@ nothing this decisive.
 overrides. A few lines per game instead of one, and unlike the previous design it
 works. The scene is a bare node carrying only the script.
 
+#### Second root cause, same day — the generators never ran on this package at all
+
+Found by asking whether the `[Export]` finding had a sibling. It did, and it was
+worse.
+
+Godot's source generators ship **inside `Godot.NET.Sdk`**. This package
+deliberately builds on `Microsoft.NET.Sdk` with a plain `GodotSharp` reference,
+so the generators never ran here: the build produced **zero** generated files. A
+`Node` type declared in this assembly therefore had no `InvokeGodotClassMethod`
+override, which is how the engine dispatches `_Ready` and `_Process` to C#. Both
+were overridden and neither could ever be called.
+
+A consuming game's generator does not cover the gap — it only sees the game's own
+declarations. Verified by reading the generated `ScriptMethods` on both sides: the
+game's subclass had no `_Ready`/`_Process` entry, while a game class declaring its
+own `_Ready` had the full dispatch.
+
+So the harness had **two independent fatal defects**, either of which alone
+guaranteed silence. Fixing only the exports would have produced another identical
+CI failure and no new information.
+
+**Fixed in 0.2.1** by referencing `Godot.SourceGenerators` directly as an
+analyzer. `ScriptPathAttribute` is disabled: it maps a type to its `res://` file,
+nothing here lives under `res://`, and it hard-fails without `GodotProjectDir`
+which only the Godot SDK sets.
+
+Configuration stays on virtual members rather than returning to `[Export]`. With
+generators on both sides inherited exports might now marshal, but the virtual
+design does not depend on that subtlety being right — and this area has now been
+wrong twice.
+
+**The general lesson, worth more than either fix:** shipping a Godot `Node` in a
+NuGet package is not the ordinary case, and the SDK carries machinery that is
+easy to assume comes with `GodotSharp`. It does not. Read the generated sources.
+
 #### Workflow defects found by running against a real game
 
 Six, all fixed, all invisible to local review:

@@ -5,7 +5,7 @@
          them have. -->
     <TargetFramework>net8.0</TargetFramework>
     <PackageId>B44.Godot</PackageId>
-    <Version>0.2.0</Version>
+    <Version>0.2.1</Version>
     <Authors>DA-Sandman-Jr</Authors>
     <Company>B44 Labs</Company>
     <Description>Godot-side adapters and headless composition smoke testing for B44 games. The engine-coupled counterpart to the engine-free B44.Common.</Description>
@@ -19,13 +19,38 @@
     <RootNamespace>B44.Godot</RootNamespace>
     <LangVersion>latest</LangVersion>
     <EnableDynamicLoading>true</EnableDynamicLoading>
+
+    <!-- ScriptPathAttribute maps a script type to its res:// file. Nothing in
+         this package lives under res:// — a game's subclass carries the script
+         path — and the generator hard-fails without GodotProjectDir, which only
+         Godot.NET.Sdk sets. The remaining generators are the ones that matter:
+         they produce the engine dispatch for _Ready and _Process. -->
+    <GodotDisabledSourceGenerators>ScriptPathAttribute</GodotDisabledSourceGenerators>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Godot.NET.Sdk normally declares this for the generators. Referencing the
+         generators outside that SDK means declaring it here, or the property is
+         invisible to them and the disable above silently does nothing. -->
+    <CompilerVisibleProperty Include="GodotDisabledSourceGenerators" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- Compile-time only. The consuming game's Godot.NET.Sdk supplies GodotSharp
          at runtime, and forcing our version into its output would fight the SDK.
          PrivateAssets keeps the reference from flowing to consumers. -->
     <PackageReference Include="GodotSharp" Version="4.7.0" PrivateAssets="all" />
+
+    <!-- Godot's source generators ship inside Godot.NET.Sdk, which this package
+         deliberately does not use — so without this reference they never run
+         here, and a Node type declared in this assembly gets no engine dispatch
+         at all: no InvokeGodotClassMethod override, so an overridden _Ready or
+         _Process is simply never called. A consuming game's generator does not
+         cover it either; it only sees the game's own declarations.
+         Verified 2026-08-01 by reading generated sources on both sides.
+         OutputItemType=Analyzer is how a generator is referenced outside the SDK. -->
+    <PackageReference Include="Godot.SourceGenerators" Version="4.7.0"
+                      PrivateAssets="all" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
