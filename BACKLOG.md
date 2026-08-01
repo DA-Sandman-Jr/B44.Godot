@@ -59,7 +59,45 @@ game. Four were wrong, in ways no amount of local review would have caught:
 reference coexists fine with the game's `Godot.NET.Sdk`; cold-checkout
 `--headless --import` succeeds; the job timeout correctly kills a hung engine.
 
-**Still open — the engine aborts.** With the scene path fixed, Godot reaches the
+#### Diagnosed 2026-07-31 — the CLI scene argument does not override the main scene
+
+With `--verbose` the log is unambiguous, and the earlier hypothesis was wrong:
+the hand-written `.tscn` is fine. Godot parses it, loads
+`WhispersSmokeRunner.cs`, and resolves all nine autoloads. Committing the
+script's `.uid` was correct and necessary, but it was not the cause.
+
+What the log actually shows:
+
+- `res://tests/Smoke/Smoke.tscn` — **loaded**
+- `res://Scenes/Title/Title.tscn`, the project's configured main scene — **also
+  loaded, immediately afterwards**
+- `B44SmokeRunner._Ready` — **never ran** (zero occurrences of its startup line)
+
+So passing a scene path on the command line causes Godot to *load* that scene
+as a resource while still running the project's configured main scene. The
+harness node is therefore never instantiated, nothing ever calls
+`GetTree().Quit()`, and the run only ends because of `--quit-after`. The
+subsequent SIGSEGV is in `libcoreclr.so` during teardown, after Godot's
+"Resource still in use" reporting — a shutdown-path crash, plausibly incidental
+to headless .NET teardown rather than the thing to fix first.
+
+**This needs a design change, not a workflow tweak.** Two candidates:
+
+1. **`--script`** — the documented approach for headless Godot tooling. A
+   `SceneTree`-derived script is the entry point, so nothing competes with the
+   main scene. This likely means the harness stops being a `Node` in a `.tscn`
+   and becomes a script entry point, which also removes the per-game one-line
+   subclass and the hand-authored scene file.
+2. **Autoload** — the harness registers as an autoload in the game's
+   `project.godot`. It then runs regardless of which scene is current, at the
+   cost of editing every consumer's project file.
+
+(1) is cleaner and matches how Godot expects headless automation to work. Either
+way `B44SmokeRunner`, the marker contract, and `SmokeEvaluation` survive intact —
+the pure evaluator and its 11 tests are unaffected, since only the entry point
+changes.
+
+**Superseded note, kept for the record — the engine aborts.** With the scene path fixed, Godot reaches the
 scene and dies with **exit 134 (SIGABRT)**, and the captured log contains only
 the version banner, so the cause is not yet visible. Instrumentation is now in
 place for the next attempt: `--verbose`, `stdbuf` to defeat block buffering
