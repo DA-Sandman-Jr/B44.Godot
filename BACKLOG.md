@@ -172,26 +172,27 @@ string list `B44SmokeRunner` takes today.
 
 ## Known Defects
 
-### `SmokeObservation.EngineErrors` is never populated
+### RESOLVED 2026-08-01 — `SmokeObservation.EngineErrors` now populated
 
-`B44SmokeRunner._engineErrors` is declared and read into every observation, and
-nothing ever writes to it. So `SmokeOutcome.EngineError` cannot occur, and the
-comment on `_Ready` claiming the harness scrapes Godot's print handlers describes
-behaviour that does not exist. `CLAUDE.md`'s contract section has been corrected;
-the code has not.
+Fixed in 0.3.0 via `OS.AddLogger` and a `Godot.Logger` subclass, after confirming
+against the GodotSharp 4.7 metadata that the API exists rather than assuming it.
 
-This is not cosmetic. It is the gap that makes a partial failure inside a child's
-`_Ready` invisible: Godot catches managed exceptions at the marshalling boundary
-and prints them rather than propagating, so without scraping that output the
-harness cannot see them. TicTacHoe works around it by validating node paths
-itself before `AddChild` — a workaround that only exists because of this gap.
+It only works because 0.2.1 made the source generators run on this package: a
+`Logger` subclass declared here needs generated dispatch for `_LogError`, exactly
+like the `Node` callbacks did.
 
-Fixing it needs a way to observe engine output from C#. Confirm what Godot 4.7
-actually exposes before designing: this is exactly the kind of assumption that
-has already been wrong twice here.
+**Scope is deliberately narrower than the field name suggests, and is documented
+in the type.** A logger sees only what is emitted after registration, and the
+harness registers from its own `_Ready` — after every autoload has initialised.
+So it covers composition the harness performs and anything later, not the autoload
+phase. Autoload failures remain the game probe's job, which is what
+`IB44StartupProbe` is for. Warnings are excluded: games legitimately push warnings
+during startup and failing on those would make the gate unusable.
 
-Either populate it or delete it. A contract field that is always empty is worse
-than no field, because it reads as coverage that is not there.
+**Shipped as a minor, not a patch.** Feeding a previously-dead failure channel can
+turn a passing run red, which is enforcement-expanding by B44's own rule — the
+same rule Meziantou 0.8.6 broke by shipping an analyzer bump as a patch into
+consumers' floats.
 
 ---
 
