@@ -59,7 +59,35 @@ game. Four were wrong, in ways no amount of local review would have caught:
 reference coexists fine with the game's `Godot.NET.Sdk`; cold-checkout
 `--headless --import` succeeds; the job timeout correctly kills a hung engine.
 
-#### Diagnosed 2026-07-31 — the CLI scene argument does not override the main scene
+#### Current conclusion 2026-08-01 — the harness looks correct; Whispers crashes headless
+
+Six workflow defects were found and fixed by running this against a real game
+(details below). With all six fixed, the sequence in the log is:
+
+1. `run/main_scene` is overridden to the smoke scene, before import — confirmed
+   in the job output.
+2. Godot starts, resolves all nine autoloads, and loads `Smoke.tscn`.
+3. `FlowCoordinator`, an autoload, preloads `Title.tscn`, `Dungeon.tscn`, and
+   `TurnManager.cs` during its own initialisation.
+4. **The process segfaults (signal 11) before the main scene is instantiated** —
+   `B44SmokeRunner._Ready` never runs, so no marker is ever emitted.
+
+**The most likely reading is that the harness is working and has found a real
+defect: Whispers does not survive headless startup.** That is exactly what a
+composition smoke test exists to detect, and this game has never been run
+headless before. The crash is in `libcoreclr` and lands during autoload
+initialisation, with `FlowCoordinator`'s eager scene preloading the obvious
+suspect — loading `Dungeon.tscn` and friends at startup does a great deal of
+work before anything has decided the game is ready.
+
+**This makes the next step a Whispers investigation, not a harness one**, and it
+wants someone who can run Godot headless locally. Verifying the harness itself
+would be quicker against a simpler game: Time Machine Clicker or TicTacHoe have
+far less autoload machinery, and adopting one of them would separate "the
+harness works" from "Whispers boots headless" — two questions currently tangled
+together. Recommended before any further work here.
+
+#### Earlier diagnosis — the CLI scene argument does not override the main scene
 
 With `--verbose` the log is unambiguous, and the earlier hypothesis was wrong:
 the hand-written `.tscn` is fine. Godot parses it, loads
