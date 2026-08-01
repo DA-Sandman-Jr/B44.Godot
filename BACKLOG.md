@@ -18,14 +18,22 @@ repository's share.
 
 ### 1. Adopt the smoke workflow in a real game
 
-**Status:** In progress. A shared CI workflow that nothing calls is not done, and
-the harness's `Node` shell plus the workflow itself have **no other test**:
-neither can be exercised without a Godot binary, and there is none on a dev
-machine or on a CI runner before the install step.
+**Status:** Done for the first consumer, 2026-08-01. Time Machine Clicker runs
+it on every push and pull request and it passes end to end: `_Ready` fires, the
+probe resolves, both autoloads are verified, `B44_SMOKE_PASS outcome=Passed` is
+emitted, and the workflow asserts on it. TMC was the right first consumer —
+`GameRoot` is a real composition root, while TicTacHoe's autoloads are only theme
+and input initialisers.
 
-Adopted in Time Machine Clicker, which is the right first consumer — `GameRoot`
-is a real composition root, while TicTacHoe's autoloads are only theme and input
-initialisers. Whispers is second, and separately blocked (see below).
+Remaining: TicTacHoe has not adopted it, and Whispers is blocked on its own
+headless crash (below). The entry stays open until at least one more game runs
+it, since a harness proven against exactly one project has proven less than it
+looks.
+
+Getting here took two package fixes, six workflow fixes, and — the part worth
+keeping — a change in method. Everything below the workflow list was found by
+reading generated sources locally. Everything above it cost a CI round trip
+each.
 
 #### Root cause of the harness never running, 2026-08-01 — cross-assembly `[Export]`
 
