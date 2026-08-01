@@ -18,126 +18,80 @@ repository's share.
 
 ### 1. Adopt the smoke workflow in a real game
 
-**Status:** Planned — and this is what makes 1A actually finished. A shared CI
-workflow that nothing calls is not done, and the harness's `Node` shell plus the
-workflow itself have **no other test**: neither can be exercised without a Godot
-binary, and there is none on a dev machine or on a CI runner before the install
-step.
+**Status:** In progress. A shared CI workflow that nothing calls is not done, and
+the harness's `Node` shell plus the workflow itself have **no other test**:
+neither can be exercised without a Godot binary, and there is none on a dev
+machine or on a CI runner before the install step.
 
-Prefer Whispers if its startup-readiness work has landed, since it is the game
-that needs an explicit `Initializing` / `Ready` / `Failed` state anyway.
-Otherwise adopt the simplest game first and migrate Whispers afterwards.
+Adopted in Time Machine Clicker, which is the right first consumer — `GameRoot`
+is a real composition root, while TicTacHoe's autoloads are only theme and input
+initialisers. Whispers is second, and separately blocked (see below).
 
-Serial dependency to plan for: this package must be created, packaged, published
-to nuget.org, and consumed before a game can adopt the harness — the same
-publish-then-migrate cycle the `B44.Standards` 0.8.x work used.
+#### Root cause of the harness never running, 2026-08-01 — cross-assembly `[Export]`
 
-#### First real run against Whispers, 2026-07-31 — four defects found, one open
+**Godot's source generator does not marshal `[Export]` properties inherited from
+a base class in another assembly.** The generated `ScriptProperties` for a game's
+subclass of `B44SmokeRunner` contained no entry for `ProbePath`,
+`RequiredAutoloads`, or `TimeoutSeconds` — only an empty `PropertyName` class
+inheriting the base one. A scene that sets those properties then fails to
+instantiate, silently: the scene resource loads, no node is created, `_Ready`
+never runs, and the engine waits until something kills it.
 
-Every item previously listed here as unproven has now been tested against a real
-game. Four were wrong, in ways no amount of local review would have caught:
+That single defect explains the symptom in **both** adopting games, and it
+supersedes three earlier hypotheses recorded here — the hand-written `.tscn`, the
+CLI scene argument, and a Whispers-specific crash. Two of those were real bugs
+worth the fixes they got; none of them was why the runner never ran.
+
+Found by building a consumer with `EmitCompilerGeneratedFiles` and reading the
+generated source — locally, in one build, with no Godot install and no CI cycle.
+Worth remembering: several rounds of blind CI iteration preceded it and produced
+nothing this decisive.
+
+**Fixed in 0.2.0.** Configuration is now plain `protected virtual` members a game
+overrides. A few lines per game instead of one, and unlike the previous design it
+works. The scene is a bare node carrying only the script.
+
+#### Workflow defects found by running against a real game
+
+Six, all fixed, all invisible to local review:
 
 1. **Download URL 404'd.** Godot tags a `.0` release as `4.7-stable`, not
-   `4.7.0-stable` — only patches carry the third component — while NuGet
-   versions always carry three. `Godot.NET.Sdk/4.7.0` means engine release
-   `4.7`. Note the SDK-compatibility check ran and *passed* immediately before:
-   the strings agreed while denoting different things.
-2. **Binary name was reconstructed wrongly.** The archive extracts a folder
-   using `_x86_64` containing a binary using `.x86_64` — underscore in one, dot
-   in the other. Now located by search rather than reconstruction, because
+   `4.7.0-stable` — only patches carry the third component — while NuGet versions
+   always carry three. Note the SDK-compatibility check ran and *passed*
+   immediately before: the strings agreed while denoting different things.
+2. **Binary name reconstructed wrongly.** The archive extracts a folder using
+   `_x86_64` containing a binary using `.x86_64`. Now located by search, because
    guessing failed twice.
 3. **Building the solution failed with MSB4126.** Godot-generated solutions
-   define only `ExportDebug`, `ExportRelease`, and `Release` — no plain `Debug`
-   at solution level. The project file does define it, so the workflow builds
-   the csproj beside `project.godot`.
-4. **The scene argument must be a project-relative file path, not `res://`.** A
-   `res://` argument is accepted silently and ignored: the engine printed its
-   banner, started no scene, and idled until the job timeout killed it. Ten
-   minutes of output was one line.
+   define only `ExportDebug`/`ExportRelease`/`Release` — no plain `Debug`. The
+   workflow builds the csproj beside `project.godot`.
+4. **The scene argument must be a project-relative path, not `res://`.** A
+   `res://` argument is accepted silently and ignored.
+5. **A CLI scene argument does not override the main scene at all.** It loads the
+   scene as a resource while still running the project's configured one. The
+   workflow now rewrites `run/main_scene` before import, so the engine takes its
+   completely normal startup path — which is the path this test exists to
+   exercise.
+6. **`--quit-after` exits before the main scene is instantiated.** Removed; the
+   harness quits itself once it has a verdict, and the job timeout is the
+   backstop.
 
 **Confirmed working:** `GodotSharp` as a `PrivateAssets="all"` compile-time
-reference coexists fine with the game's `Godot.NET.Sdk`; cold-checkout
-`--headless --import` succeeds; the job timeout correctly kills a hung engine.
+reference coexists with the game's `Godot.NET.Sdk`; cold-checkout
+`--headless --import` succeeds; the job timeout kills a hung engine.
 
-#### Current conclusion 2026-08-01 — the harness looks correct; Whispers crashes headless
+#### Whispers is blocked on its own headless crash
 
-Six workflow defects were found and fixed by running this against a real game
-(details below). With all six fixed, the sequence in the log is:
+With all six workflow defects fixed, Whispers segfaults (signal 11) in
+`libcoreclr` during autoload initialisation, before the main scene is
+instantiated. `FlowCoordinator` eagerly preloads `Title.tscn`, `Dungeon.tscn`,
+and `TurnManager.cs` during its own startup, which is the obvious suspect.
 
-1. `run/main_scene` is overridden to the smoke scene, before import — confirmed
-   in the job output.
-2. Godot starts, resolves all nine autoloads, and loads `Smoke.tscn`.
-3. `FlowCoordinator`, an autoload, preloads `Title.tscn`, `Dungeon.tscn`, and
-   `TurnManager.cs` during its own initialisation.
-4. **The process segfaults (signal 11) before the main scene is instantiated** —
-   `B44SmokeRunner._Ready` never runs, so no marker is ever emitted.
-
-**The most likely reading is that the harness is working and has found a real
-defect: Whispers does not survive headless startup.** That is exactly what a
-composition smoke test exists to detect, and this game has never been run
-headless before. The crash is in `libcoreclr` and lands during autoload
-initialisation, with `FlowCoordinator`'s eager scene preloading the obvious
-suspect — loading `Dungeon.tscn` and friends at startup does a great deal of
-work before anything has decided the game is ready.
-
-**This makes the next step a Whispers investigation, not a harness one**, and it
-wants someone who can run Godot headless locally. Verifying the harness itself
-would be quicker against a simpler game: Time Machine Clicker or TicTacHoe have
-far less autoload machinery, and adopting one of them would separate "the
-harness works" from "Whispers boots headless" — two questions currently tangled
-together. Recommended before any further work here.
-
-#### Earlier diagnosis — the CLI scene argument does not override the main scene
-
-With `--verbose` the log is unambiguous, and the earlier hypothesis was wrong:
-the hand-written `.tscn` is fine. Godot parses it, loads
-`WhispersSmokeRunner.cs`, and resolves all nine autoloads. Committing the
-script's `.uid` was correct and necessary, but it was not the cause.
-
-What the log actually shows:
-
-- `res://tests/Smoke/Smoke.tscn` — **loaded**
-- `res://Scenes/Title/Title.tscn`, the project's configured main scene — **also
-  loaded, immediately afterwards**
-- `B44SmokeRunner._Ready` — **never ran** (zero occurrences of its startup line)
-
-So passing a scene path on the command line causes Godot to *load* that scene
-as a resource while still running the project's configured main scene. The
-harness node is therefore never instantiated, nothing ever calls
-`GetTree().Quit()`, and the run only ends because of `--quit-after`. The
-subsequent SIGSEGV is in `libcoreclr.so` during teardown, after Godot's
-"Resource still in use" reporting — a shutdown-path crash, plausibly incidental
-to headless .NET teardown rather than the thing to fix first.
-
-**This needs a design change, not a workflow tweak.** Two candidates:
-
-1. **`--script`** — the documented approach for headless Godot tooling. A
-   `SceneTree`-derived script is the entry point, so nothing competes with the
-   main scene. This likely means the harness stops being a `Node` in a `.tscn`
-   and becomes a script entry point, which also removes the per-game one-line
-   subclass and the hand-authored scene file.
-2. **Autoload** — the harness registers as an autoload in the game's
-   `project.godot`. It then runs regardless of which scene is current, at the
-   cost of editing every consumer's project file.
-
-(1) is cleaner and matches how Godot expects headless automation to work. Either
-way `B44SmokeRunner`, the marker contract, and `SmokeEvaluation` survive intact —
-the pure evaluator and its 11 tests are unaffected, since only the entry point
-changes.
-
-**Superseded note, kept for the record — the engine aborts.** With the scene path fixed, Godot reaches the
-scene and dies with **exit 134 (SIGABRT)**, and the captured log contains only
-the version banner, so the cause is not yet visible. Instrumentation is now in
-place for the next attempt: `--verbose`, `stdbuf` to defeat block buffering
-(which is why output vanished when the process died rather than exited), and
-explicit signal reporting so a crash is not misreported as a missing marker.
-
-**Leading hypothesis, untested:** the hand-written `tests/Smoke/Smoke.tscn` in
-Whispers. It was authored by hand rather than saved by the Godot editor, and a
-malformed scene or a script that fails to attach is the most likely cause of an
-abort this early. Opening the project once in the editor and re-saving the scene
-would settle it. Diagnosing this properly wants a local Godot install; blind CI
-iteration was stopped deliberately at that point.
+That crash predates the `[Export]` finding and is not explained by it, so it
+stands as a genuine finding: **Whispers does not survive headless startup**,
+which is exactly what a composition smoke test exists to detect. Its workflow is
+parked as `workflow_dispatch` so a known-failing job does not sit red on every
+push. Investigating wants someone who can run Godot headless locally.
 
 ### 2. Migrate the shared engine-side adapters (B44.Common backlog entry 1B)
 
