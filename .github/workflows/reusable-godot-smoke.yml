@@ -132,6 +132,38 @@ jobs:
         # report errors; the smoke run is the gate.
         run: timeout 300 "$GODOT_BIN" --headless --import || true
 
+      - name: Point the project at the smoke scene
+        shell: bash
+        working-directory: ${{ inputs.project-path }}
+        env:
+          SMOKE_SCENE: ${{ inputs.smoke-scene }}
+        run: |
+          set -euo pipefail
+          # Passing a scene path on Godot's command line LOADS it as a resource
+          # but does not replace the configured main scene: the project starts
+          # its own main scene and the harness node is never instantiated.
+          # Verified 2026-07-31 — the smoke scene and the game's title scene
+          # both appeared in the load log, and the runner's _Ready never ran.
+          #
+          # Overriding run/main_scene makes the harness the main scene, so the
+          # engine takes its completely normal startup path, which is the path
+          # this test exists to exercise. The checkout is disposable, so
+          # mutating project.godot affects nothing beyond this job.
+          python3 - <<'PY'
+          import os, re
+          scene = os.environ["SMOKE_SCENE"]
+          path = "project.godot"
+          text = open(path, encoding="utf-8").read()
+          if re.search(r"^run/main_scene=", text, re.M):
+              text = re.sub(r"^run/main_scene=.*$", f'run/main_scene="{scene}"', text, count=1, flags=re.M)
+          elif "[application]" in text:
+              text = text.replace("[application]", "[application]" + chr(10) + f'run/main_scene="{scene}"', 1)
+          else:
+              raise SystemExit("project.godot has no [application] section to set run/main_scene in")
+          open(path, "w", encoding="utf-8").write(text)
+          print(f"main scene -> {scene}")
+          PY
+
       - name: Run composition smoke test
         id: smoke
         shell: bash
@@ -145,15 +177,14 @@ jobs:
           # because that is how the path is written everywhere else in a Godot
           # project; the prefix is stripped here.
           scene='${{ inputs.smoke-scene }}'
-          scene="${scene#res://}"
-          echo "Running scene: $scene"
+          echo "Smoke scene: $scene"
           set +e
           # --verbose because a crash here otherwise leaves nothing to work
           # with: a SIGABRT produced a log containing only the version banner,
           # which is indistinguishable from the engine doing nothing at all.
           # stdbuf defeats block buffering, which is why output is lost when
           # the process dies rather than exits.
-          stdbuf -oL -eL "$GODOT_BIN" --headless --verbose --quit-after 3000 "$scene" 2>&1 | tee smoke.log
+          stdbuf -oL -eL "$GODOT_BIN" --headless --verbose --quit-after 3000 2>&1 | tee smoke.log
           # tee is in the pipeline, so read Godot's status rather than tee's.
           status="${PIPESTATUS[0]}"
           set -e
