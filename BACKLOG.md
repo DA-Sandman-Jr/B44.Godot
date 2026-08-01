@@ -189,6 +189,21 @@ phase. Autoload failures remain the game probe's job, which is what
 `IB44StartupProbe` is for. Warnings are excluded: games legitimately push warnings
 during startup and failing on those would make the gate unusable.
 
+**Verified live, not merely compiling.** A passing smoke run is indistinguishable
+from a collector that silently does nothing — the failure mode this package hit
+twice — so a throwaway branch injected a deliberate `GD.PushError` into
+TicTacHoe's runner and the run failed with:
+
+```
+Engine errors during startup:
+  Error: B44 verification: deliberate engine error (res://tests/Smoke/TicTacHoeSmokeRunner.cs:41 in void TicTacHoe.Smoke.TicTacHoeSmokeRunner._Ready())
+B44_SMOKE_FAIL outcome=EngineError
+```
+
+File, line, and function all came through. The branch was closed unmerged. Do the
+same for any future change to this channel: "the build is green" proves nothing
+about a code path whose only job is to fire on failure.
+
 **Shipped as a minor, not a patch.** Feeding a previously-dead failure channel can
 turn a passing run red, which is enforcement-expanding by B44's own rule — the
 same rule Meziantou 0.8.6 broke by shipping an analyzer bump as a patch into
