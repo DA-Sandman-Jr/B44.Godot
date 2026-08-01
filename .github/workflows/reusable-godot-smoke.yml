@@ -184,7 +184,13 @@ jobs:
           # which is indistinguishable from the engine doing nothing at all.
           # stdbuf defeats block buffering, which is why output is lost when
           # the process dies rather than exits.
-          stdbuf -oL -eL "$GODOT_BIN" --headless --verbose --quit-after 30000 2>&1 | tee smoke.log
+          # No --quit-after. Verified 2026-08-01 against a deliberately simple game:
+          # with it, the engine loads the main scene and exits before ever
+          # instantiating it — the log ends with "Completed load for Smoke.tscn"
+          # followed straight by "Unloading", and _Ready never runs. The harness
+          # calls GetTree().Quit() itself once it has a verdict, and the job
+          # timeout is the real backstop for an engine that never loads it.
+          stdbuf -oL -eL "$GODOT_BIN" --headless --verbose 2>&1 | tee smoke.log
           # tee is in the pipeline, so read Godot's status rather than tee's.
           status="${PIPESTATUS[0]}"
           set -e
