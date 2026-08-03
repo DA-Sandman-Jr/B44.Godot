@@ -45,10 +45,10 @@ exists to prevent.
 
 ## Versioning
 
-`B44.Godot` versions **independently** of `B44.Common` and `B44.Standards`,
-which ship in lockstep from a single tag in their shared repository. Consumers
-float it `0.<minor>.*` while pre-1.0. Any change to the smoke marker or exit
-codes is contract-expanding and bumps the minor version.
+`B44.Godot`, `B44.Common`, and `B44.Standards` each version independently from
+their own public repositories. Consumers float `B44.Godot` as `0.<minor>.*`
+while it is pre-1.0. Any change to the smoke marker or exit codes is
+contract-expanding and bumps the minor version.
 
 ## Building
 
