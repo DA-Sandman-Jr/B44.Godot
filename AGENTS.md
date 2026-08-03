@@ -80,9 +80,9 @@ Four steps, deliberately four abstractions and not two:
 1. The **game** exposes `Initializing` / `Ready` / `Failed` plus diagnostics, by
    implementing `IB44StartupProbe`. It owns its own lifecycle vocabulary.
 2. The **harness** (`B44SmokeRunner`) observes that and checks required
-   autoloads and declared node paths. (`SmokeObservation.EngineErrors` exists in
-   the contract but is never populated — see the backlog. Do not describe the
-   harness as capturing engine errors until it does.)
+   autoloads, declared node paths, and engine errors emitted after its logger is
+   registered in `_Ready`. Autoload-phase failures happen earlier and remain the
+   game probe's responsibility.
 3. The harness emits one standardized **marker line** and a human-readable
    report, then quits with a deterministic exit code.
 4. The **workflow** asserts on the marker and the exit code.
