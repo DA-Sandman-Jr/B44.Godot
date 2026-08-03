@@ -44,7 +44,7 @@
     <!-- The engine-free half. This package is its Godot-side counterpart, so the
          dependency runs one way only: B44.Common never references this. Bounded
          float, like every internal B44 reference. -->
-    <PackageReference Include="B44.Common" Version="0.9.*" />
+    <PackageReference Include="B44.Common" Version="0.11.*" />
 
     <!-- Godot's source generators ship inside Godot.NET.Sdk, which this package
          deliberately does not use — so without this reference they never run

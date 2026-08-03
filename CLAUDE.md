@@ -14,8 +14,8 @@
 - Before automated analyzer fixes, baseline measurement, scripted bulk text rewrites, or consuming a freshly published package, read `.b44/B44.Tooling.md`.
 - Godot writes a `.uid` file beside every script as a stable identifier. Commit all of them and never add `*.uid` to `.gitignore`: the project still works locally without them, but references break as soon as it is cloned onto another machine, including a CI runner doing a fresh checkout. Godot generates them for every C# script under the project directory, including engine-free `Core` and test projects it never loads; that is expected and those files are committed too.
 - Each repository keeps a root `BACKLOG.md` for agreed-but-not-started work and known defects, with defects in their own section so they stay distinct from planned work. It is authored by hand, never generated and never gated by the build — an empty file written to satisfy a check is worse than no file. Cross-repository programs live once in `B44.Common`'s backlog; a consumer's backlog links to the program and holds only its own share of the work, never a restatement that can drift.
-- Isolation is by repository, not by folder. Engine- or framework-coupled code (`B44.Godot`, any future adapter) and **obligation-bearing** third-party code we vendor, port, or convert each live in their own repository publishing their own package, never inside a normal B44 repository. Engine coupling keeps the engine-free MSBuild guard literally true with no carve-outs and decouples our cadence from the engine's. Third-party code is a licensing boundary: B44 packages are all rights reserved — source public for reference, not licensed for reuse — so an obligation-bearing file inside one contradicts its own terms. Converting or hand-porting does NOT shed the upstream license; a port is a derivative work and the attribution obligation follows it. Each such repository carries its own `LICENSE` and `THIRD-PARTY-NOTICES.md`. A separate project in-tree is not a substitute: it would require weakening the guard, or dual-licensing within one tree.
-- The test for third-party material is **obligation, not origin**. MIT, BSD, and Apache carry attribution and licence-text requirements that travel with the binary to every consumer, so they are obligation-bearing and take the isolated repository above. CC0 is a public-domain dedication carrying nothing, so it may live in a normal repository — but record its source, date, and what was taken anyway, because provenance you cannot show is provenance you do not have, and storefront disclosure will ask.
+- Isolation is by repository, not by folder. Engine- or framework-coupled adapters live in their own repository and package so engine-free build guards remain literal and release cadences stay independent.
+- Keep licensing boundaries explicit. Source governed by terms different from a repository's `LICENSE` belongs behind a separately documented repository/package boundary with its provenance and required notices intact.
 <!-- B44 ORGANIZATION GUIDANCE: END -->
 
 The one B44 repository allowed to reference Godot. It exists so every other B44
@@ -46,10 +46,10 @@ Published as the `B44.Godot` package on nuget.org, consumed by B44 games.
 
 ## Versioning & Publish — Decision Record
 
-`B44.Common` and `B44.Standards` ship in **lockstep from a single `v*` tag** in
-their shared repository, because they live together. `B44.Godot` is a separate
-repository and therefore versions **independently**, on its own tags. It does
-not track `B44.Common`'s number and should not be expected to.
+`B44.Common`, `B44.Standards`, and `B44.Godot` each ship from their own public
+repository and version **independently**. `B44.Godot` publishes from its own
+`v*` tags; its number does not track either package and should not be expected
+to.
 
 Consumers float it `0.<minor>.*` while pre-1.0, like every other internal B44
 package. Enforcement- or contract-expanding changes — notably any change to the
