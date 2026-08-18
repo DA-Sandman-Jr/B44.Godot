@@ -51,6 +51,18 @@ jobs:
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
 
+      - name: Authenticate GitHub Packages
+        shell: bash
+        env:
+          NUGET_AUTH_TOKEN: ${{ github.token }}
+          NUGET_AUTH_USERNAME: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          # NuGet reads this well-known environment variable for the existing
+          # source named "github". Keep the token out of NuGet.Config so the
+          # caller's short-lived GITHUB_TOKEN never reaches the checkout.
+          echo "NuGetPackageSourceCredentials_github=Username=${NUGET_AUTH_USERNAME};Password=${NUGET_AUTH_TOKEN}" >> "$GITHUB_ENV"
+
       - name: Verify the requested Godot version matches the project SDK
         shell: bash
         working-directory: ${{ inputs.project-path }}
