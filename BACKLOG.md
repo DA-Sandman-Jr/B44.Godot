@@ -13,7 +13,19 @@ Cross-repository programs live once in
 
 ## Planned Work
 
-No B44.Godot-local planned work is currently queued.
+### Reusable reproducible game export CI
+
+
+**Status:** **Deferred** until the B44 games are closer to release.
+
+Add reusable clean-checkout Godot export automation for B44 games. The shared
+capability should prove that a consuming game's existing export configuration
+can produce its declared distributable artifacts in CI, complementing the
+existing engine-free build/test and Godot composition-smoke layers.
+
+B44.Godot owns the reusable Godot-specific export mechanics. Each game remains
+authoritative for its export presets, supported platforms, signing, store and
+publishing policy, and other product-specific release configuration.
 
 ---
 
