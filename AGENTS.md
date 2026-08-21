@@ -64,10 +64,10 @@ The library compiles against `GodotSharp` with `PrivateAssets="all"`: the
 reference is compile-time only and does not flow to consumers, so a game's
 `Godot.NET.Sdk` supplies the runtime assemblies and the two cannot fight.
 
-Pinned to **4.7.0**, matching all three games' `Godot.NET.Sdk/4.7.0` as of
-2026-07-30. Godot-side code churns on the engine's release cadence rather than
-ours, which is a stated reason this repository is separate — so raising the pin
-is a deliberate act, not a routine dependency bump.
+Pinned to **4.7.0**, matching the active private consumers' Godot SDK version
+as of 2026-07-30. Godot-side code churns on the engine's release cadence rather
+than ours, which is a stated reason this repository is separate — so raising
+the pin is a deliberate act, not a routine dependency bump.
 
 The reusable workflow takes `godot-version` as a **required input with no
 default**, so each consuming game owns the version it tests against and this
@@ -134,10 +134,11 @@ node still gets created and still carries the name you gave it; it is simply the
 wrong type. `GetNodeOrNull<T>` then returns null forever, and typical defensive
 null-handling turns that into silent degradation rather than a crash.
 
-Found in Whispers 2026-08-01: `QuestLog` was declared inside `QuestState.cs`, so
-`/root/QuestLog` was a `QuestState` node named `QuestLog`. Every
-`GetNodeOrNull<QuestLog>` in the game returned null, which silently disabled
-quest-driven autosave. It had been that way undetected.
+This failure was demonstrated in a private consumer in 2026: a Godot type was
+declared inside another type's script file, so the named node was created as
+the wrong runtime type. Every typed lookup returned null and silently disabled
+dependent behavior. The example is kept here because it explains why the rule
+exists without exposing the consumer's source or repository.
 
 This does **not** overturn B44's multi-type file style — `MA0048` stays off and
 sanctioned multi-type files remain fine. Engine-bound types are the exception,
