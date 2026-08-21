@@ -37,7 +37,7 @@ No known defects are currently queued in this repository.
 
 ## Notes
 
-Whispers of the Earth is the first demonstrated consumer that needs the Godot
-logger sink composed with a second destination (`DiagnosticsCapture.Recent`).
-Reconsider a shared sink-composition helper only when a second materially
-equivalent consumer appears or the logging architecture is explicitly revisited.
+A private game is the first demonstrated consumer that needs the Godot logger
+sink composed with a second destination. Reconsider a shared sink-composition
+helper only when a second materially equivalent consumer appears or the
+logging architecture is explicitly revisited.

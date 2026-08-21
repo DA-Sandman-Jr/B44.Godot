@@ -11,12 +11,12 @@ namespace B44.Godot.Configuration;
 /// exist on the node that owns it.
 /// </summary>
 /// <remarks>
-/// Taken from TicTacHoe's copy, which was identical to Whispers' except that it
-/// raises a descriptive <see cref="InvalidOperationException"/> where Whispers
-/// raised a bare <see cref="ArgumentNullException"/> naming only the property.
+/// Consolidated from equivalent implementations in two private consumers. The
+/// shared version raises a descriptive <see cref="InvalidOperationException"/>
+/// when a configured path value is missing.
 ///
 /// **A missing node is reported with <see cref="GD.PushError(string)"/>, not
-/// <c>GD.PrintErr</c>, and that is a deliberate change from both copies.**
+/// <c>GD.PrintErr</c>, and that is a deliberate change from both originals.**
 /// <c>GD.PrintErr</c> writes a message; only <c>PushError</c> reaches Godot's
 /// error channel, which is what <c>B44SmokeRunner</c> observes. With the old
 /// call a renamed or moved node printed a line nobody read and the smoke test

@@ -1,7 +1,8 @@
 # B44.Godot
 
-Godot-side adapters and headless composition smoke testing for B44 games,
-published as the `B44.Godot` package on nuget.org.
+B44.Godot is the small engine-facing layer shared by B44 games. It provides
+Godot adapters and a reusable headless composition smoke test without pulling
+engine dependencies into otherwise engine-free libraries.
 
 This is the engine-coupled counterpart to
 [`B44.Common`](https://github.com/DA-Sandman-Jr/B44.Common). It exists as its
@@ -61,8 +62,9 @@ compile-time-only package reference, and every pass/fail rule is deliberately
 free of Godot types. The `Node` shell and the workflow are covered by a
 consuming game running the workflow in CI.
 
-## License
+## Availability and license
 
-None — all rights reserved. The source is public for reference; it is not
-licensed for reuse. See [`LICENSE`](LICENSE) and
-[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+The source is publicly visible for review and portfolio evaluation. No license
+for reuse is granted, and the package is maintained for B44-owned projects
+rather than offered as a supported public dependency. See [`LICENSE`](LICENSE)
+and [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).

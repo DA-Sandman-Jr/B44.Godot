@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <!-- net8.0 matches Whispers, the lowest common target across the games.
-         Raising this would strand a consumer, so it moves only when all of
-         them have. -->
+    <!-- net8.0 matches the lowest-targeting private consumer. Raising this
+         would strand a consumer, so it moves only when all of them have. -->
     <TargetFramework>net8.0</TargetFramework>
     <PackageId>B44.Godot</PackageId>
     <Version>0.3.2</Version>
@@ -61,5 +60,6 @@
   <ItemGroup>
     <None Include="../README.md" Pack="true" PackagePath="\" />
     <None Include="../LICENSE" Pack="true" PackagePath="\" />
+    <None Include="../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 </Project>
