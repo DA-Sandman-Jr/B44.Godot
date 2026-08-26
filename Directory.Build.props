@@ -40,6 +40,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="B44.Standards" Version="0.10.*" PrivateAssets="all" />
+    <PackageReference Include="B44.Standards" Version="0.11.*" PrivateAssets="all" />
   </ItemGroup>
 </Project>
