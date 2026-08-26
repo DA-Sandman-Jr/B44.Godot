@@ -46,6 +46,32 @@ That contract is owned here — games conform to it rather than inventing their
 own, because three games with three protocols is the duplication this package
 exists to prevent.
 
+## UID sidecar checking
+
+Godot writes a `.uid` beside every C# script under the project directory and
+uses it as that script's stable identifier. A missing one is invisible
+locally — the editor regenerates it on the next open — and only breaks after a
+fresh clone, which usually means CI or a second machine. The reusable check
+reports scripts that are tracked without their sidecar:
+
+```yaml
+jobs:
+  uid-check:
+    uses: DA-Sandman-Jr/B44.Godot/.github/workflows/reusable-godot-uid-check.yml@<sha>
+    with:
+      project-path: '.'
+```
+
+It never writes a `.uid`. A UID is the editor's to allocate, and a fabricated
+one is worse than a missing file because it looks authoritative and resolves to
+nothing. The failure always names the same action: open the project in the
+Godot editor once, then commit what it generates.
+
+This lives here rather than in `B44.Standards` because the rule has to know
+what a Godot project is. The half that does not — a tracked `.uid` whose script
+no longer exists — is an orphan, and `B44.Standards` repository hygiene reports
+that with no engine knowledge at all.
+
 ## Versioning
 
 `B44.Godot`, `B44.Common`, and `B44.Standards` each version independently from
