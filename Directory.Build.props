@@ -14,6 +14,13 @@
     <B44RatchetRepositoryRoot>$(MSBuildThisFileDirectory)</B44RatchetRepositoryRoot>
     <B44RatchetBaseline>$(MSBuildThisFileDirectory)ratchet-baseline.txt</B44RatchetBaseline>
 
+    <!-- Repository hygiene and the analyzer-suppression ratchet, same anchor.
+         B44EngineFree is deliberately NOT set here either, for the reason
+         below: this repository and its tests are supposed to reach Godot. -->
+    <B44HygieneEnabled>true</B44HygieneEnabled>
+    <B44SuppressionBudget>0</B44SuppressionBudget>
+    <B44WarningPolicy>true</B44WarningPolicy>
+
     <!-- B44EngineFreeCore is deliberately NOT set and must never be. This is the
          one B44 repository whose whole purpose is engine coupling; the guard
          exists to keep it out of everywhere else.
@@ -40,6 +47,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="B44.Standards" Version="0.11.*" PrivateAssets="all" />
+    <PackageReference Include="B44.Standards" Version="0.12.*" PrivateAssets="all" />
   </ItemGroup>
 </Project>
