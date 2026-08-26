@@ -10,6 +10,8 @@ own repository so every other B44 repository can keep its engine-free MSBuild
 guard literally true, with no carve-outs — and so Godot-side code can churn on
 the engine's release cadence without dragging the engine-free packages with it.
 
+Unity integration: [`B44.Unity`](https://github.com/DA-Sandman-Jr/B44.Unity).
+
 Planned work and known defects are tracked in [`BACKLOG.md`](BACKLOG.md).
 
 ## What's in it
