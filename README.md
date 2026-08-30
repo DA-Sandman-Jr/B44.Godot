@@ -46,31 +46,23 @@ That contract is owned here — games conform to it rather than inventing their
 own, because three games with three protocols is the duplication this package
 exists to prevent.
 
-## UID sidecar checking
+## UID sidecars
 
-Godot writes a `.uid` beside every C# script under the project directory and
-uses it as that script's stable identifier. A missing one is invisible
-locally — the editor regenerates it on the next open — and only breaks after a
-fresh clone, which usually means CI or a second machine. The reusable check
-reports scripts that are tracked without their sidecar:
+Godot writes a `.uid` beside a C# script and uses it as that script's stable
+identifier. Every one Godot generates is committed, and `*.uid` never enters
+`.gitignore` — without the committed sidecar, references break on the next
+fresh clone.
 
-```yaml
-jobs:
-  uid-check:
-    uses: DA-Sandman-Jr/B44.Godot/.github/workflows/reusable-godot-uid-check.yml@<sha>
-    with:
-      project-path: '.'
-```
+A sidecar Godot has not written yet is not a defect and is not checked here. A
+UID is the editor's to allocate: a CI job that demanded one could only produce a
+red build whose single remedy is opening the editor, and hand-writing a value is
+worse than the missing file because it looks authoritative and resolves to
+nothing. This repository shipped `reusable-godot-uid-check.yml` for that and
+removed it on 2026-08-29; no game ever called it.
 
-It never writes a `.uid`. A UID is the editor's to allocate, and a fabricated
-one is worse than a missing file because it looks authoritative and resolves to
-nothing. The failure always names the same action: open the project in the
-Godot editor once, then commit what it generates.
-
-This lives here rather than in `B44.Standards` because the rule has to know
-what a Godot project is. The half that does not — a tracked `.uid` whose script
-no longer exists — is an orphan, and `B44.Standards` repository hygiene reports
-that with no engine knowledge at all.
+What is checked needs no engine knowledge and lives in `B44.Standards`
+repository hygiene: a tracked `.uid` or `.import` whose principal file is gone
+is an orphan, and fails the build.
 
 ## Versioning
 
