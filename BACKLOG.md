@@ -38,6 +38,12 @@ No known defects are currently queued in this repository.
 ## Notes
 
 A private game is the first demonstrated consumer that needs the Godot logger
-sink composed with a second destination. Reconsider a shared sink-composition
-helper only when a second materially equivalent consumer appears or the
-logging architecture is explicitly revisited.
+sink composed with a second destination; `WhispersOfTheEarth` records the same
+need for its diagnostics recent-issue buffer.
+
+A shared sink-composition helper is judged on the capability, not on a headcount
+of consumers: it becomes extractable when its seam is small and coherent, its API
+stays domain-facing, and independent evidence says the reuse is real. A second
+materially equivalent consumer is one form of that evidence, not a precondition.
+Nothing is scheduled here yet — the seam has not been settled, and a broader
+logging-architecture revisit would still supersede it.
