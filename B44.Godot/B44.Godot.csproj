@@ -25,6 +25,36 @@
          Godot.NET.Sdk sets. The remaining generators are the ones that matter:
          they produce the engine dispatch for _Ready and _Process. -->
     <GodotDisabledSourceGenerators>ScriptPathAttribute</GodotDisabledSourceGenerators>
+
+    <!-- Released-compatibility validation, stock .NET Package Validation. It
+         runs inside `dotnet pack` and diffs this package against the one named
+         below, which is downloaded during restore, so the release workflow's
+         no-build pack keeps working unchanged.
+
+         Removing a public type or member, changing a signature, or narrowing
+         accessibility is invisible to a test suite: a test only covers what it
+         calls, and nothing here calls a member in order to prove it still
+         exists. A game finds out when it floats onto the new version and fails
+         to compile. This moves that to pack time.
+
+         Separate concern from the composition smoke. That proves a packaged
+         Node still boots and dispatches inside a real engine; this proves the
+         surface a game compiles against did not change underneath it. Neither
+         substitutes for the other.
+
+         0.3.2 is the latest version actually published to nuget.org, confirmed
+         listed rather than inferred from the tag. The baseline should represent
+         the latest published compatibility surface while the next release is
+         being developed, and must be advanced after each successful publish: a
+         stale baseline is not merely stricter, because API added after it and
+         removed again never enters the comparison at all.
+
+         Breaks are expected at a 0.x minor and are not forbidden here; they
+         become explicit. Record a deliberate one in CompatibilitySuppressions.xml
+         via `dotnet pack -p:GenerateCompatibilitySuppressionFile=true`, so the
+         file is the reviewable list of what was broken on purpose. -->
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageValidationBaselineVersion>0.3.2</PackageValidationBaselineVersion>
   </PropertyGroup>
 
   <ItemGroup>
