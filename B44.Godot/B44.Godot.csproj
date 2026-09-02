@@ -31,11 +31,14 @@
          below, which is downloaded during restore, so the release workflow's
          no-build pack keeps working unchanged.
 
-         Removing a public type or member, changing a signature, or narrowing
-         accessibility is invisible to a test suite: a test only covers what it
-         calls, and nothing here calls a member in order to prove it still
-         exists. A game finds out when it floats onto the new version and fails
-         to compile. This moves that to pack time.
+         A test suite protects the API surface it exercises: delete a member a
+         test calls, or change its signature, and the test stops compiling. It
+         says nothing about the rest — nothing here calls a member purely to
+         prove it still exists, so public API no test happens to touch can be
+         removed or narrowed with the suite still green. Package Validation
+         compares the whole published surface rather than the exercised slice.
+         A game would otherwise find out when it floats onto the new version
+         and fails to compile. This moves that to pack time.
 
          Separate concern from the composition smoke. That proves a packaged
          Node still boots and dispatches inside a real engine; this proves the
