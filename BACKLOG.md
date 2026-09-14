@@ -6,8 +6,8 @@ removed from this file after release.
 
 Status values: **Planned**, **In progress**, **Blocked**, and **Deferred**.
 
-Cross-repository programs live once in
-[`B44.Common`'s backlog](https://github.com/DA-Sandman-Jr/B44.Common/blob/main/BACKLOG.md).
+Cross-repository plans live with the work in a location appropriate to its
+visibility; this backlog holds this repository's own tasks and links as needed.
 
 ---
 
