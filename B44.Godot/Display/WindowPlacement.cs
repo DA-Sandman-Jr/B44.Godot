@@ -70,4 +70,17 @@ public static class WindowPlacement
         int height = Math.Clamp((int)Math.Round(design.Height * scale, MidpointRounding.AwayFromZero), 1, Math.Max(1, usableHeight));
         return new(usable.X + ((usableWidth - width) / 2), usable.Y + ((usableHeight - height) / 2), width, height);
     }
+
+    /// <summary>
+    /// <see cref="Fit"/> for a window that does not already fit: <c>null</c> when <paramref name="current"/> lies
+    /// within <paramref name="fraction"/> of the usable area in both directions, so a size a player, a launch
+    /// argument or a test harness chose is kept, and only a window too large for its screen is refitted.
+    /// </summary>
+    public static WindowRect? FitIfOversized(WindowSize current, WindowSize design, WindowRect usable, double fraction)
+    {
+        WindowRect fitted = Fit(design, usable, fraction);
+        double maxWidth = Math.Max(0, usable.Width) * fraction;
+        double maxHeight = Math.Max(0, usable.Height) * fraction;
+        return current.Width <= maxWidth && current.Height <= maxHeight ? null : fitted;
+    }
 }
