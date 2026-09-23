@@ -14,8 +14,8 @@ public readonly record struct WindowRect(int X, int Y, int Width, int Height)
 public readonly record struct WindowSize(int Width, int Height);
 
 /// <summary>
-/// Where a window goes when it leaves fullscreen. Deliberately free of Godot types:
-/// <see cref="WindowModeSwitcher"/> is the thin shell that applies the answer.
+/// Where a window goes when it leaves fullscreen, and how a windowed game fits its screen at startup.
+/// Deliberately free of Godot types: <see cref="WindowModeSwitcher"/> is the thin shell that applies the answer.
 /// </summary>
 public static class WindowPlacement
 {
@@ -40,5 +40,34 @@ public static class WindowPlacement
             Math.Clamp(y, usable.Y, usable.Y + usableHeight - height),
             width,
             height);
+    }
+
+    /// <summary>
+    /// The largest window with <paramref name="design"/>'s shape that fits within <paramref name="fraction"/> of the
+    /// usable area, never larger than the design itself, centred on the usable area. A portrait phone layout opened
+    /// on a landscape monitor keeps its shape instead of being cut to the screen's height into a near-square window,
+    /// and a design larger than the screen opens wholly visible.
+    /// </summary>
+    /// <param name="design">The size the game is laid out for; only its shape matters once it has to shrink.</param>
+    /// <param name="usable">The usable area of the screen the window is on.</param>
+    /// <param name="fraction">How much of the usable width and height the window may take, in (0, 1].</param>
+    public static WindowRect Fit(WindowSize design, WindowRect usable, double fraction)
+    {
+        if (design.Width <= 0 || design.Height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(design), design, "A design size must be positive.");
+        }
+
+        if (double.IsNaN(fraction) || fraction <= 0 || fraction > 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(fraction), fraction, "The screen fraction must be in (0, 1].");
+        }
+
+        int usableWidth = Math.Max(0, usable.Width);
+        int usableHeight = Math.Max(0, usable.Height);
+        double scale = Math.Min(1d, Math.Min(usableWidth * fraction / design.Width, usableHeight * fraction / design.Height));
+        int width = Math.Clamp((int)Math.Round(design.Width * scale, MidpointRounding.AwayFromZero), 1, Math.Max(1, usableWidth));
+        int height = Math.Clamp((int)Math.Round(design.Height * scale, MidpointRounding.AwayFromZero), 1, Math.Max(1, usableHeight));
+        return new(usable.X + ((usableWidth - width) / 2), usable.Y + ((usableHeight - height) / 2), width, height);
     }
 }
