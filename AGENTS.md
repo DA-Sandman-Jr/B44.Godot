@@ -128,6 +128,18 @@ beforehand produced three confident hypotheses and all three were wrong. When
 Godot behaviour is inexplicable, check what was generated before theorising about
 the engine.
 
+## Window Mode — Decision Record
+
+`WindowModeSwitcher` exists because four games switched fullscreen themselves:
+two artillery Starters with near-identical copies that remembered and clamped the
+windowed bounds, and two games that did not, so leaving fullscreen dropped the
+window at whatever size Godot chose. This package owns the transitions, the
+remembered windowed mode and bounds, and the clamp into the usable screen
+(`WindowPlacement`, Godot-free and tested here). Games own the default, the
+persisted preference, the fallback and minimum sizes, and the binding that
+toggles it. It is a plain class rather than a `Node`, so the source-generator
+and inherited-export traps below do not apply to it.
+
 ## One Godot Type Per Script File — B44 Standard
 
 **A Godot type registered as an autoload or attached to a `.tscn` must be the only

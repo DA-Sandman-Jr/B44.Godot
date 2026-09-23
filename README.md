@@ -21,6 +21,18 @@ Planned work and known defects are tracked in [`BACKLOG.md`](BACKLOG.md).
 | `B44.Godot.Smoke` | `IB44StartupProbe`, `B44StartupState` | The game-side surface: expose whether startup succeeded, and why not |
 | `B44.Godot.Smoke` | `SmokeEvaluation`, `SmokeObservation`, `SmokeResult` | Godot-free pass/fail rules, and the marker + exit-code contract |
 | `B44.Godot.Smoke` | `B44SmokeRunner` | Thin `Node` shell that gathers observations and quits with a verdict |
+| `B44.Godot.Display` | `WindowPlacement`, `WindowRect`, `WindowSize` | Godot-free rule for where a window returns from fullscreen |
+| `B44.Godot.Display` | `WindowModeSwitcher` | Thin shell that switches a window between fullscreen and its remembered windowed mode |
+
+## Window mode
+
+`WindowModeSwitcher` switches one window between fullscreen and the mode it had
+before: entering fullscreen remembers whether it was windowed or maximized and,
+when windowed, where; leaving puts it back, clamped by `WindowPlacement` into the
+usable screen and never below the minimum size the game passes. A window that was
+never windowed this session returns at the game's fallback size, centred. Headless
+runs record the requested mode without touching a window. The game keeps the
+policy: its default, persisting the preference, and the control that toggles it.
 
 ## Composition smoke testing
 
