@@ -133,6 +133,26 @@ public class WindowPlacementTests
     }
 
     [Fact]
+    public void AWindowThatAlreadyFitsIsKept()
+    {
+        // A launch argument or harness asked for 1280x720; it fits a 1080p screen, so it is not second-guessed.
+        Assert.Null(WindowPlacement.FitIfOversized(new WindowSize(1280, 720), new WindowSize(1080, 1920), Screen, 0.9));
+    }
+
+    [Fact]
+    public void AWindowTooTallForItsScreenIsRefitted()
+    {
+        Assert.Equal(new WindowRect(696, 52, 527, 936),
+            WindowPlacement.FitIfOversized(new WindowSize(1080, 1920), new WindowSize(1080, 1920), Screen, 0.9));
+    }
+
+    [Fact]
+    public void AWindowTooWideForItsScreenIsRefitted()
+    {
+        Assert.NotNull(WindowPlacement.FitIfOversized(new WindowSize(1800, 600), new WindowSize(1080, 1920), Screen, 0.9));
+    }
+
+    [Fact]
     public void AnEmptyDesignIsRefused()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => WindowPlacement.Fit(new WindowSize(0, 1920), Screen, 0.9));

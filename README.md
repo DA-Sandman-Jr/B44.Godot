@@ -34,9 +34,11 @@ never windowed this session returns at the game's fallback size, centred. Headle
 runs record the requested mode without touching a window. The game keeps the
 policy: its default, persisting the preference, and the control that toggles it.
 
-`FitWindowed(design)` sizes a plain window at startup to the largest rectangle of
-the design's shape that fits 90% (by default) of the screen's usable area, never
-larger than the design, centred (`WindowPlacement.Fit`). A 1080x1920 portrait
+`FitWindowed(design)` refits a plain window that is too large for its screen, at
+startup, to the largest rectangle of the design's shape that fits 90% (by default)
+of the usable area, never larger than the design, centred (`WindowPlacement.Fit`,
+`FitIfOversized`). A window that already fits, such as one a launch argument or a
+test harness sized, is kept. A 1080x1920 portrait
 layout opened on a 1080p desktop keeps its shape instead of being cut into a
 near-square window taller than the screen. Call it before applying a saved
 fullscreen preference; it leaves fullscreen and maximized windows alone.

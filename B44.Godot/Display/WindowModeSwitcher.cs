@@ -45,11 +45,12 @@ public sealed class WindowModeSwitcher
     public void Toggle() => SetFullscreen(!Fullscreen);
 
     /// <summary>
-    /// Sizes a plain window to the largest <paramref name="design"/>-shaped rectangle within
-    /// <paramref name="fraction"/> of its screen's usable area, centred, using <see cref="WindowPlacement.Fit"/>.
-    /// Call it once at startup, before any saved fullscreen preference is applied, so a layout designed for a
-    /// screen larger or differently shaped than the player's opens whole and keeps its shape. It leaves a
-    /// fullscreen or maximized window alone, and does nothing headless.
+    /// Refits a plain window that is too large for its screen to the largest <paramref name="design"/>-shaped
+    /// rectangle within <paramref name="fraction"/> of the usable area, centred
+    /// (<see cref="WindowPlacement.FitIfOversized"/>). Call it once at startup, before any saved fullscreen
+    /// preference is applied, so a layout designed for a screen larger than the player's opens whole and keeps
+    /// its shape. A window that already fits, such as one sized by a launch argument or a test harness, is kept;
+    /// so is a fullscreen or maximized window, and nothing happens headless.
     /// </summary>
     public void FitWindowed(WindowSize design, double fraction = 0.9)
     {
@@ -59,10 +60,13 @@ public sealed class WindowModeSwitcher
         }
 
         Rect2I usable = DisplayServer.ScreenGetUsableRect(_window.CurrentScreen);
-        WindowRect placed = WindowPlacement.Fit(design,
+        WindowRect? placed = WindowPlacement.FitIfOversized(new(_window.Size.X, _window.Size.Y), design,
             new(usable.Position.X, usable.Position.Y, usable.Size.X, usable.Size.Y), fraction);
-        _window.Size = new(placed.Width, placed.Height);
-        _window.Position = new(placed.X, placed.Y);
+        if (placed is { } fitted)
+        {
+            _window.Size = new(fitted.Width, fitted.Height);
+            _window.Position = new(fitted.X, fitted.Y);
+        }
     }
 
     public void SetFullscreen(bool fullscreen)

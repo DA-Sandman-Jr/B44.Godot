@@ -143,7 +143,8 @@ and inherited-export traps below do not apply to it.
 `FitWindowed` / `WindowPlacement.Fit` were added when the portrait mobile games
 (TicTacHoe, TimeMachineClicker), which must also be playable on desktop, opened
 their 1080x1920 design as a window taller than a 1080p screen. Fitting keeps the
-design's shape and never enlarges it; games choose when to call it (at startup,
+design's shape, never enlarges it, and keeps a window that already fits (0.3.5:
+so a launch argument or test harness keeps its size); games choose when to call it (at startup,
 before a saved fullscreen preference is applied).
 
 ## One Godot Type Per Script File — B44 Standard
