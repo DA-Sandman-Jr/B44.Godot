@@ -140,6 +140,12 @@ persisted preference, the fallback and minimum sizes, and the binding that
 toggles it. It is a plain class rather than a `Node`, so the source-generator
 and inherited-export traps below do not apply to it.
 
+`FitWindowed` / `WindowPlacement.Fit` were added when the portrait mobile games
+(TicTacHoe, TimeMachineClicker), which must also be playable on desktop, opened
+their 1080x1920 design as a window taller than a 1080p screen. Fitting keeps the
+design's shape and never enlarges it; games choose when to call it (at startup,
+before a saved fullscreen preference is applied).
+
 ## One Godot Type Per Script File — B44 Standard
 
 **A Godot type registered as an autoload or attached to a `.tscn` must be the only

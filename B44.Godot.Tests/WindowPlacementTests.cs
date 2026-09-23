@@ -1,3 +1,4 @@
+using System;
 using B44.Godot.Display;
 using Xunit;
 
@@ -77,5 +78,63 @@ public class WindowPlacementTests
         var none = new WindowRect(0, 0, 0, 0);
 
         Assert.Equal(none, WindowPlacement.Restore(null, none, Fallback, Minimum));
+    }
+
+    [Fact]
+    public void APortraitDesignTallerThanTheScreenKeepsItsShapeAndFits()
+    {
+        // A 1080x1920 phone layout on a 1080p desktop: cut to the screen height it would be near-square.
+        WindowRect placed = WindowPlacement.Fit(new WindowSize(1080, 1920), Screen, 0.9);
+
+        Assert.Equal(new WindowRect(696, 52, 527, 936), placed);
+        Assert.Equal(1080d / 1920d, (double)placed.Width / placed.Height, 2);
+    }
+
+    [Fact]
+    public void ADesignThatAlreadyFitsIsCentredAtItsOwnSize()
+    {
+        Assert.Equal(new WindowRect(760, 220, 400, 600), WindowPlacement.Fit(new WindowSize(400, 600), Screen, 0.9));
+    }
+
+    [Fact]
+    public void ALandscapeDesignOnAPortraitScreenFitsItsWidth()
+    {
+        var portraitScreen = new WindowRect(0, 0, 1080, 1920);
+
+        Assert.Equal(new WindowRect(0, 656, 1080, 608), WindowPlacement.Fit(new WindowSize(1600, 900), portraitScreen, 1));
+    }
+
+    [Fact]
+    public void AFittedWindowStaysOnAnOffsetScreen()
+    {
+        var secondScreen = new WindowRect(1920, 40, 1280, 984);
+
+        WindowRect placed = WindowPlacement.Fit(new WindowSize(1080, 1920), secondScreen, 0.9);
+
+        Assert.Equal(new WindowRect(2311, 89, 498, 886), placed);
+        Assert.True(placed.X >= secondScreen.X && placed.Right <= secondScreen.Right);
+        Assert.True(placed.Y >= secondScreen.Y && placed.Bottom <= secondScreen.Bottom);
+    }
+
+    [Fact]
+    public void AnEmptyUsableAreaStillYieldsAWindow()
+    {
+        Assert.Equal(new WindowRect(0, 0, 1, 1), WindowPlacement.Fit(new WindowSize(1080, 1920), new WindowRect(0, 0, 0, 0), 0.9));
+    }
+
+    [Theory]
+    [InlineData(0d)]
+    [InlineData(-0.5d)]
+    [InlineData(1.5d)]
+    [InlineData(double.NaN)]
+    public void AScreenFractionOutsideTheUnitIntervalIsRefused(double fraction)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => WindowPlacement.Fit(new WindowSize(1080, 1920), Screen, fraction));
+    }
+
+    [Fact]
+    public void AnEmptyDesignIsRefused()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => WindowPlacement.Fit(new WindowSize(0, 1920), Screen, 0.9));
     }
 }
