@@ -4,7 +4,7 @@
          would strand a consumer, so it moves only when all of them have. -->
     <TargetFramework>net8.0</TargetFramework>
     <PackageId>B44.Godot</PackageId>
-    <Version>0.3.2</Version>
+    <Version>0.3.3</Version>
     <Authors>DA-Sandman-Jr</Authors>
     <Company>B44 Labs</Company>
     <Description>Godot-side adapters and headless composition smoke testing for B44 games. The engine-coupled counterpart to the engine-free B44.Common.</Description>
