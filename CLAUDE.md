@@ -24,23 +24,25 @@
 - Keep licensing boundaries explicit. Source governed by terms different from a repository's `LICENSE` belongs behind a separately documented repository/package boundary with its provenance and required notices intact.
 <!-- B44 ORGANIZATION GUIDANCE: END -->
 
-The one B44 repository allowed to reference Godot. It exists so every other B44
-repository can keep its engine-free guard literally true with no carve-outs.
+The public B44 repository for shared Godot adapters. It keeps public portable
+packages engine-free and gives engine integration its own release boundary.
 
 Published as the `B44.Godot` package on nuget.org, consumed by B44 games.
 
 ## Hard Rules
 
-- **This is the only place Godot may appear.** Anything engine-free belongs in
-  `B44.Common` instead. If a type here has no `using Godot` and no reason to
-  live beside one, it is in the wrong repository.
+- **This owns public shared Godot adapters.** Games own their presentation;
+  separately authorized private adapters retain their own package boundary.
+  Portable capabilities belong in their natural engine-free owner. Pure logic
+  may live here when it supports an adapter's contract and stays engine-free.
 - **Thin adapters only.** This is a bridge over primitives that already exist in
   `B44.Common`, not a second home for game logic. No game rules, no game state,
   no payload schemas, no content catalogs, no scene-flow authority, no global
   service location.
-- **The second-occurrence rule applies here exactly as it does to
-  `B44.Common`.** A helper enters only when at least two games demonstrably need
-  materially equivalent behavior.
+- **Admission follows the canonical capability policy.** A bounded adapter
+  may serve one real consumer with independent reuse evidence and a small,
+  natural API. Broad orchestration needs multiple independent consumers;
+  repeated similar code triggers ownership review rather than automatic admission.
 - **Pure logic stays testable without the engine.** Pass/fail rules, parsing,
   and formatting go in plain classes with no Godot types; `Node` subclasses stay
   thin shells over them. There is no Godot binary on a typical dev machine or on
