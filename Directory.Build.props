@@ -22,8 +22,8 @@
     <B44WarningPolicy>true</B44WarningPolicy>
 
     <!-- B44EngineFreeCore is deliberately NOT set and must never be. This is the
-         one B44 repository whose whole purpose is engine coupling; the guard
-         exists to keep it out of everywhere else.
+         public B44 package whose purpose is Godot coupling. Authorized private
+         Godot adapters may also couple to the engine; pure game Core stays guarded.
 
          B44Deterministic IS set. Engine coupling is not a licence for ambient
          time or randomness — the smoke runner measures elapsed time from Godot's
