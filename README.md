@@ -62,6 +62,9 @@ jobs:
 the version it tests against, and this repository never needs editing when Godot
 releases.
 
+The workflow builds with `B44AgentSyncVerifyOnly=true`, so stale generated
+guidance fails the consumer checkpoint instead of being rewritten.
+
 The workflow asserts on a standardized marker line and the process exit code.
 That contract is owned here — games conform to it rather than inventing their
 own, because three games with three protocols is the duplication this package
