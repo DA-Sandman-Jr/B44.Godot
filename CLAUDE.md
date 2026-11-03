@@ -97,6 +97,28 @@ Collapsing steps 1 and 3 into "the same signal" is the mistake to avoid: the
 game's state is its own concern, and the marker is a CI artifact. They must
 agree, not be identical.
 
+## Validation Module — Decision Record
+
+Four games (TimeMachineClicker, NowhereToNest, TicTacHoe, WhispersOfTheEarth) each
+carried an identical `ProofRunner.ps1` and near-identical verdict code in their
+`validate.ps1`; a verdict defect (a required step that could not run still
+passed) had to be fixed four times. The local half of the smoke contract belongs
+beside its CI half, so 0.3.6 ships both as one PowerShell module: the proof runner
+(bounded launch, proof verdict, isolated user directories) and the validation
+ledger (steps, `summary.json`, exit codes 0 PASSED, 1 FAILED, 2 UNAVAILABLE,
+3 INCOMPLETE). The exit codes are a contract: changing them is contract-expanding
+and bumps the minor version.
+
+Games keep scope membership, step lists, proof scripts, fixtures, expected
+diagnostics and test-count parsing. The boundary probes in each `validate.ps1`
+(inject a forbidden reference and require a B44.Standards guard to reject it)
+are also near-identical, but they exercise B44.Standards guards, so their natural
+owner is B44.Standards; they stay local until that ownership is reviewed there.
+
+The module arrives with the package, so a consumer restores its host before
+importing it, and its bootstrap writes a summary of its own when that fails.
+Its tests need PowerShell 7 (`pwsh`), which the hosted runners provide.
+
 ## Shipping a Godot `Node` in a NuGet Package — Decision Record
 
 This is not the ordinary case, and Godot's tooling assumes the ordinary case in
@@ -188,6 +210,9 @@ declaration order untouched.
 - `B44.Godot.Tests/` — xunit.v3, engine-free. `<TestingPlatformDotnetTestSupport>true`
   is required for `dotnet test` to discover xunit.v3 on current SDKs.
 - `.github/workflows/reusable-godot-smoke.yml` — the shared workflow games call.
+- `B44.Godot/Validation/B44.Godot.Validation.psm1` — the PowerShell 7 validation
+  module, packed as `tools/B44.Godot.Validation.psm1` and never compiled.
+  `ValidationModuleTests` runs it through `pwsh` with stand-in processes.
 
 ## Tests
 

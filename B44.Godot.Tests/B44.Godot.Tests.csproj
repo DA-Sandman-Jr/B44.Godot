@@ -19,4 +19,9 @@
   <ItemGroup>
     <ProjectReference Include="..\B44.Godot\B44.Godot.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- The PowerShell validation module, tested from the output directory exactly as it is packed. -->
+    <None Include="..\B44.Godot\Validation\B44.Godot.Validation.psm1" Link="B44.Godot.Validation.psm1" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
