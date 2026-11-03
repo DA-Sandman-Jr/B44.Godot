@@ -15,6 +15,8 @@ Set-StrictMode -Version Latest
 # Godot prints engine and script diagnostics with these prefixes at the start of a line.
 $script:EngineDiagnosticPattern = '(?m)^\s*(SCRIPT ERROR|USER ERROR|USER WARNING|ERROR|WARNING):[^\r\n]*'
 $script:Validation = $null
+# The summary a run carries until Complete-Validation replaces it, so one that stops early still says so.
+$script:Unfinished = 'The run has not finished: it stopped before Complete-Validation, so this summary lists only the steps it recorded.'
 
 function Get-GodotUserRoot {
     # Where Godot places config/custom_user_dir_name on this operating system.
@@ -39,8 +41,12 @@ function Write-ProofOverride {
 }
 
 function Invoke-BoundedProcess {
-    # Runs a process with each argument passed separately (no shell quoting), drains both pipes
-    # concurrently, and kills the whole process tree if it outlives TimeoutSeconds.
+    # Runs a process with each argument passed separately (no shell quoting) and reads both pipes as it runs.
+    # One wall-clock limit bounds the whole run: the process's exit and the end of its output. A process still
+    # running at the limit has its whole tree stopped, then gets a short grace to flush what it wrote. A process
+    # that exited while something it started still holds its output open is not waited for past the limit:
+    # TimedOut is set, TimeoutReason says which happened, and Output keeps everything read before then.
+    # Throws when the executable cannot be started.
     param(
         [Parameter(Mandatory = $true)][string] $FilePath,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]] $Arguments,
@@ -56,25 +62,70 @@ function Invoke-BoundedProcess {
     $start.RedirectStandardError = $true
     $process = [Diagnostics.Process]::Start($start)
     try {
-        $standardOutput = $process.StandardOutput.ReadToEndAsync()
-        $standardError = $process.StandardError.ReadToEndAsync()
-        $timedOut = -not $process.WaitForExit($TimeoutSeconds * 1000)
-        if ($timedOut) { $process.Kill($true) }
-        $process.WaitForExit()
-        $stdout = $standardOutput.GetAwaiter().GetResult()
-        $stderr = $standardError.GetAwaiter().GetResult()
+        $watch = [Diagnostics.Stopwatch]::StartNew()
+        $deadline = [TimeSpan]::FromSeconds($TimeoutSeconds)
+        # Each pipe is read in chunks on this thread, so the reads can be abandoned at the limit without losing
+        # what already arrived. A pipe that has ended waits on a task that never completes.
+        $streams = @($process.StandardOutput, $process.StandardError)
+        $text = @([Text.StringBuilder]::new(), [Text.StringBuilder]::new())
+        $buffers = @([char[]]::new(8192), [char[]]::new(8192))
+        $ended = [Threading.Tasks.TaskCompletionSource[int]]::new().Task
+        $reads = [Threading.Tasks.Task[]]@($streams[0].ReadAsync($buffers[0], 0, 8192), $streams[1].ReadAsync($buffers[1], 0, 8192))
+        $open = 2
+        $reason = $null
+        $graceStarted = $false
+        while ($open -gt 0) {
+            $remaining = $deadline - $watch.Elapsed
+            if ($remaining -le [TimeSpan]::Zero) {
+                if ($graceStarted) { break }
+                if (-not $process.HasExited) {
+                    $reason = 'it did not exit within its time limit and was stopped'
+                    try { $process.Kill($true) } catch [InvalidOperationException] { }
+                    # The stopped tree closes the pipes; collect what it had already written.
+                    $graceStarted = $true
+                    $deadline = $watch.Elapsed + [TimeSpan]::FromSeconds(5)
+                    continue
+                }
+                $reason = 'it exited, but a process it started still held its output open at its time limit'
+                break
+            }
+            $index = [Threading.Tasks.Task]::WaitAny($reads, [int][Math]::Min($remaining.TotalMilliseconds, 250))
+            if ($index -lt 0) { continue }
+            $count = 0
+            try { $count = $reads[$index].GetAwaiter().GetResult() } catch { $count = 0 }
+            if ($count -eq 0) { $open--; $reads[$index] = $ended }
+            else {
+                [void]$text[$index].Append($buffers[$index], 0, $count)
+                $reads[$index] = $streams[$index].ReadAsync($buffers[$index], 0, $buffers[$index].Length)
+            }
+        }
+        if (-not $reason) {
+            # Both pipes closed: the process has exited, or closed them and kept running.
+            $remainingMilliseconds = [int][Math]::Max(0, ($deadline - $watch.Elapsed).TotalMilliseconds)
+            if (-not $process.WaitForExit($remainingMilliseconds)) {
+                $reason = 'it did not exit within its time limit and was stopped'
+                try { $process.Kill($true) } catch [InvalidOperationException] { }
+            }
+        }
+        $exited = $process.WaitForExit(5000)
+        $stdout = $text[0].ToString()
+        $stderr = $text[1].ToString()
         $output = if ($stderr) { $stdout.TrimEnd() + [Environment]::NewLine + $stderr } else { $stdout }
         if ($LogPath) {
             New-Item -ItemType Directory -Path ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($LogPath))) -Force | Out-Null
             $header = "> $FilePath $($Arguments -join ' ')" + [Environment]::NewLine
-            [IO.File]::WriteAllText($LogPath, $header + $output, [Text.UTF8Encoding]::new($false))
+            $footer = if ($reason) { [Environment]::NewLine + "[validation] stopped waiting: $reason" } else { '' }
+            [IO.File]::WriteAllText($LogPath, $header + $output + $footer, [Text.UTF8Encoding]::new($false))
         }
+        $stoppedRunning = $reason -and $reason.StartsWith('it did not exit', [StringComparison]::Ordinal)
         return [pscustomobject]@{
-            ExitCode = if ($timedOut) { $null } else { $process.ExitCode }
-            TimedOut = $timedOut
+            ExitCode = if ($exited -and -not $stoppedRunning) { $process.ExitCode } else { $null }
+            TimedOut = [bool]$reason
+            TimeoutReason = $reason
             Output = $output
         }
     }
+    # Disposing closes this end of the pipes; a read still pending on a pipe something else holds is abandoned.
     finally { $process.Dispose() }
 }
 
@@ -88,7 +139,7 @@ function Invoke-GodotImport {
         [string] $LogPath)
     $result = Invoke-BoundedProcess -FilePath $Godot -Arguments @('--headless', '--editor', '--import', '--path', $Project, '--quit') `
         -TimeoutSeconds $TimeoutSeconds -WorkingDirectory $Project -LogPath $LogPath
-    if ($result.TimedOut) { throw "Godot import did not finish within $TimeoutSeconds seconds." }
+    if ($result.TimedOut) { throw "Godot import did not finish within $TimeoutSeconds seconds: $($result.TimeoutReason)." }
     if ($result.ExitCode -ne 0) { throw "Godot import failed with exit code $($result.ExitCode)." }
     return $result
 }
@@ -112,7 +163,11 @@ function Assert-GodotProof {
     $ExpectedDiagnostics = @($ExpectedDiagnostics | Where-Object { $null -ne $_ })
     $output = [string]$Result.Output
     $problems = [Collections.Generic.List[string]]::new()
-    if ($Result.TimedOut) { $problems.Add('the engine did not exit within its time limit and was stopped') }
+    if ($Result.TimedOut) {
+        # Results built by hand may not say why; the runner's own results always do.
+        $why = $Result.PSObject.Properties['TimeoutReason']
+        $problems.Add($(if ($why -and $why.Value) { 'the engine ' + ([string]$why.Value).Substring(3) } else { 'the engine did not exit within its time limit and was stopped' }))
+    }
     elseif ($Result.ExitCode -ne 0) { $problems.Add("the engine exited with code $($Result.ExitCode)") }
     if (-not $output.Contains($Marker)) { $problems.Add("the completion marker '$Marker' is missing") }
     $diagnostics = Get-EngineDiagnostics $output
@@ -166,7 +221,9 @@ function Test-GodotEngineVersion {
 
 function Start-Validation {
     # Begins one run's ledger. The caller empties Evidence before its own bootstrap, so that a run which
-    # stops before this module loads still leaves a current summary rather than an earlier run's.
+    # stops before this module loads still leaves a current summary rather than an earlier run's. From here
+    # on the summary is current at every step: it reads FAILED (exit 1) until Complete-Validation decides,
+    # so a run that throws or is stopped part way never leaves a passing or stale summary behind.
     param(
         [Parameter(Mandatory = $true)][string] $Project,
         [Parameter(Mandatory = $true)][string] $Evidence,
@@ -184,6 +241,7 @@ function Start-Validation {
         Results = [Collections.Generic.List[object]]::new()
         BlockedBy = $null
     }
+    Write-ValidationSummary 'FAILED' 1 $script:Unfinished
 }
 
 function Get-ValidationState {
@@ -200,6 +258,7 @@ function Add-ValidationResult {
         [double] $Seconds = 0,
         [string] $Note = '')
     (Get-ValidationState).Results.Add([pscustomobject]@{ Step = $Name; Status = $Status; Seconds = [math]::Round($Seconds, 1); Note = $Note })
+    Write-ValidationSummary 'FAILED' 1 $script:Unfinished
     $marker = switch ($Status) { 'passed' { 'PASS' } 'failed' { 'FAIL' } 'blocked' { 'BLOCKED' } 'unavailable' { 'NOT RUN' } default { 'SKIP' } }
     Write-Host ("[{0}] {1}{2}" -f $marker, $Name, $(if ($Note) { " - $Note" } else { '' }))
 }
@@ -226,11 +285,23 @@ function Invoke-ValidationStep {
     $override = Join-Path $state.Project 'override.cfg'
     $overrideBefore = Test-Path -LiteralPath $override
     $watch = [Diagnostics.Stopwatch]::StartNew()
-    $result = Invoke-BoundedProcess -FilePath $FilePath -Arguments $Arguments -TimeoutSeconds $TimeoutSeconds `
-        -WorkingDirectory $state.Project -LogPath $log
+    try {
+        $result = Invoke-BoundedProcess -FilePath $FilePath -Arguments $Arguments -TimeoutSeconds $TimeoutSeconds `
+            -WorkingDirectory $state.Project -LogPath $log
+    }
+    catch {
+        # A command that cannot start is a failed step, never an end to the run.
+        $cause = $_.Exception
+        while ($cause.InnerException) { $cause = $cause.InnerException }
+        $message = "could not start ${FilePath}: $($cause.Message)"
+        [IO.File]::WriteAllText($log, "> $FilePath $($Arguments -join ' ')" + [Environment]::NewLine + $message + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
+        Add-ValidationResult $Name 'failed' $watch.Elapsed.TotalSeconds "$message; see $([IO.Path]::GetRelativePath($state.Project, $log))"
+        if ($Gate) { $state.BlockedBy = $Name }
+        return
+    }
     $note = ''
     $failure = $null
-    if ($result.TimedOut) { $failure = "stopped after $TimeoutSeconds s" }
+    if ($result.TimedOut) { $failure = "stopped after $TimeoutSeconds s: $($result.TimeoutReason)" }
     else {
         if ($ExpectFailure -and $result.ExitCode -eq 0) { $failure = 'the command succeeded, so the guard did not engage' }
         elseif (-not $ExpectFailure -and $result.ExitCode -ne 0) { $failure = "exit code $($result.ExitCode)" }
@@ -284,15 +355,19 @@ function Write-ValidationSummary {
 
 function Complete-Validation {
     # Writes summary.md and summary.json and returns the run's exit code; the caller exits with it.
-    # -Unavailable ends a run that could not start here (no matching Godot, no display, an override.cfg in
-    # the way) with that reason.
+    # -Unavailable ends a run that could not go on here (no matching Godot, no display, an override.cfg in
+    # the way) with that reason. A step that already failed still makes the run FAILED: a failure outranks
+    # everything, and the reason keeps why the run then stopped.
     param([string] $Unavailable)
     $state = Get-ValidationState
     $failed = @($state.Results | Where-Object Status -EQ 'failed')
     $missing = @($state.Results | Where-Object Status -EQ 'unavailable')
     $reason = $null
-    if ($Unavailable) { $verdict = 'UNAVAILABLE'; $exitCode = 2; $reason = $Unavailable }
-    elseif ($failed.Count -gt 0) { $verdict = 'FAILED'; $exitCode = 1 }
+    if ($failed.Count -gt 0) {
+        $verdict = 'FAILED'; $exitCode = 1
+        if ($Unavailable) { $reason = "$(@($failed | ForEach-Object Step) -join ', ') failed, and then the run could not go on: $Unavailable" }
+    }
+    elseif ($Unavailable) { $verdict = 'UNAVAILABLE'; $exitCode = 2; $reason = $Unavailable }
     elseif ($missing.Count -gt 0) {
         $verdict = 'INCOMPLETE'; $exitCode = 3
         $reason = "The $($state.Selection) is unproven: $(@($missing | ForEach-Object Step) -join ', ') cannot run on this platform. Run it where they can."

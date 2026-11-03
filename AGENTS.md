@@ -118,7 +118,11 @@ are also near-identical, but they exercise B44.Standards guards, so their natura
 owner is B44.Standards; they stay local until that ownership is reviewed there.
 
 The module arrives with the package, so a consumer restores its host before
-importing it, and its bootstrap writes a summary of its own when that fails.
+importing it, and its bootstrap writes a summary of its own when that fails. Once
+`Start-Validation` runs, the module keeps the summary current itself: it reads FAILED
+until `Complete-Validation` decides, a step that cannot launch is a failed step, and a
+failure outranks `-Unavailable`. One limit bounds a process's exit and its output
+together, because a process the proof started can hold the pipes open after it exits.
 Its tests need PowerShell 7 (`pwsh`), which the hosted runners provide.
 
 ## Shipping a Godot `Node` in a NuGet Package — Decision Record

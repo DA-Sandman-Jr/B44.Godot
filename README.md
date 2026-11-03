@@ -77,8 +77,12 @@ The package carries `tools/B44.Godot.Validation.psm1`, a PowerShell 7 module tha
 NuGet never adds to a build. A game imports it from its restored package, so every
 game runs proofs and reports its verdict the same way:
 
-- **Proof runner.** `Invoke-BoundedProcess` passes arguments without shell quoting,
-  drains both pipes and kills the process tree at a wall-clock limit.
+- **Proof runner.** `Invoke-BoundedProcess` passes arguments without shell quoting and
+  reads both pipes as the process runs. One wall-clock limit bounds its exit and the end
+  of its output together: a process still running at the limit is stopped with its
+  tree, and one that exits while something it started holds its output open is not
+  waited for. Either way the result is a timeout that says which, with the output
+  read so far.
   `Assert-GodotProof` passes a run only with exit code zero, its completion marker,
   and no `ERROR:`, `WARNING:`, `SCRIPT ERROR:`, `USER ERROR:` or `USER WARNING:`
   line beyond the ones the proof declares, each with an exact count.
@@ -89,8 +93,13 @@ game runs proofs and reports its verdict the same way:
   one run's steps and write `summary.md` and `summary.json`. Each verdict has its
   own exit code and only 0 proves the selection: 0 PASSED, 1 FAILED, 2 UNAVAILABLE
   (it could not start here) and 3 INCOMPLETE (nothing failed, but a required step
-  cannot run on this platform). `Test-GodotEngineVersion` checks the engine against
-  the host's `Godot.NET.Sdk`, as the reusable smoke workflow does.
+  cannot run on this platform). A failed step outranks every other verdict, including
+  a later `Complete-Validation -Unavailable`. A step whose command cannot start is a
+  failed step, not the end of the run. The summary is rewritten as each step is
+  recorded and reads FAILED until `Complete-Validation` decides, so a run that stops
+  part way never leaves a stale or passing summary behind. `Test-GodotEngineVersion`
+  checks the engine against the host's `Godot.NET.Sdk`, as the reusable smoke workflow
+  does.
 
 The game keeps its scopes, steps, proof scripts, fixtures and expected diagnostics.
 It locates the module through the host's restore assets, for example:

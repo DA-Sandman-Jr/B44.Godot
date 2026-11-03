@@ -71,6 +71,39 @@ public sealed class ValidationModuleTests : IDisposable
     }
 
     [Fact]
+    public void BoundedProcess_ParentExitsWhileItsChildHoldsTheOutput_StopsWaitingAtTheLimitAndKeepsTheOutput()
+    {
+        // The parent starts a child that inherits its redirected output, prints, and exits. The child keeps the
+        // pipes open for minutes, so waiting for the end of the output would outlive the limit by far.
+        File.WriteAllText(Path.Combine(_work, "parent.ps1"), """
+            param([string] $Child, [string] $PidFile)
+            $start = [Diagnostics.ProcessStartInfo]::new($Child)
+            foreach ($argument in @('-NoProfile', '-Command', 'Start-Sleep -Seconds 300')) { $start.ArgumentList.Add($argument) }
+            $start.UseShellExecute = $false
+            $child = [Diagnostics.Process]::Start($start)
+            Set-Content -LiteralPath $PidFile -Value $child.Id
+            'parent done'
+            """);
+        string output = Pass("""
+            $pidFile = Join-Path $PWD.Path 'child.pid'
+            $watch = [Diagnostics.Stopwatch]::StartNew()
+            try {
+                $r = Invoke-BoundedProcess -FilePath $pwsh -Arguments @('-NoProfile', '-File', (Join-Path $PWD.Path 'parent.ps1'), '-Child', $pwsh, '-PidFile', $pidFile) -TimeoutSeconds 20
+            }
+            finally {
+                $seconds = $watch.Elapsed.TotalSeconds
+                # The whole tree: a pwsh installed as a .NET tool runs PowerShell in a child process.
+                if (Test-Path -LiteralPath $pidFile) { try { [Diagnostics.Process]::GetProcessById([int](Get-Content -LiteralPath $pidFile)).Kill($true) } catch { } }
+            }
+            "exit=$($r.ExitCode) timedout=$($r.TimedOut) bounded=$($seconds -lt 90) output=$($r.Output.Trim())"
+            "reason=$($r.TimeoutReason)"
+            """);
+
+        Assert.Contains("exit=0 timedout=True bounded=True output=parent done", output, StringComparison.Ordinal);
+        Assert.Contains("reason=it exited, but a process it started still held its output open at its time limit", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Proof_CleanExitWithItsMarker_Passes()
     {
         string output = Pass(Proof("PROOF_PASS details", exitCode: 0) + "\n'verdict=passed'");
@@ -260,6 +293,57 @@ public sealed class ValidationModuleTests : IDisposable
     }
 
     [Fact]
+    public void Ledger_AFailedStepThenUnavailable_StaysFailedAndKeepsWhyItStopped()
+    {
+        JsonElement summary = Validate("""
+            Invoke-ValidationStep 'restore' $pwsh @('-NoProfile', '-Command', 'exit 1')
+            """, out int exitCode, unavailable: "no matching Godot");
+
+        Assert.Equal(1, exitCode);
+        Assert.Equal("FAILED", summary.GetProperty("verdict").GetString());
+        Assert.Equal("restore failed, and then the run could not go on: no matching Godot", summary.GetProperty("reason").GetString());
+    }
+
+    [Fact]
+    public void Ledger_AStepWhoseExecutableIsMissing_FailsBlocksAndTheRunStillCompletes()
+    {
+        JsonElement summary = Validate("""
+            Invoke-ValidationStep 'restore' (Join-Path $game 'no-such-tool') @('restore') -Gate
+            Invoke-ValidationStep 'build' $pwsh @('-NoProfile', '-Command', 'exit 0')
+            """, out int exitCode);
+
+        Assert.Equal(1, exitCode);
+        Assert.Equal("FAILED", summary.GetProperty("verdict").GetString());
+        Assert.Equal("failed", Step(summary, "restore").GetProperty("Status").GetString());
+        Assert.StartsWith("could not start ", Step(summary, "restore").GetProperty("Note").GetString(), StringComparison.Ordinal);
+        Assert.Equal("blocked", Step(summary, "build").GetProperty("Status").GetString());
+        Assert.Contains("could not start", File.ReadAllText(Path.Combine(_work, "game", "artifacts", "validation", "restore.log")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Ledger_ARunThatStopsBeforeCompleting_LeavesACurrentFailingSummary()
+    {
+        string evidence = Path.Combine(_work, "game", "artifacts", "validation");
+        Directory.CreateDirectory(evidence);
+        File.WriteAllText(Path.Combine(evidence, "summary.json"), "{ \"verdict\": \"PASSED\", \"exitCode\": 0 }");
+
+        string message = Fail("""
+            $game = Join-Path $PWD.Path 'game'
+            Start-Validation -Project $game -Evidence (Join-Path $game 'artifacts/validation') -Title 'Game' -Selection 'scope headless'
+            Invoke-ValidationStep 'build' $pwsh @('-NoProfile', '-Command', 'exit 0')
+            throw 'the validator broke between steps'
+            """);
+
+        Assert.Contains("the validator broke between steps", message, StringComparison.Ordinal);
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(Path.Combine(evidence, "summary.json")));
+        JsonElement summary = document.RootElement;
+        Assert.Equal("FAILED", summary.GetProperty("verdict").GetString());
+        Assert.Equal(1, summary.GetProperty("exitCode").GetInt32());
+        Assert.Contains("has not finished", summary.GetProperty("reason").GetString(), StringComparison.Ordinal);
+        Assert.Equal("passed", Step(summary, "build").GetProperty("Status").GetString());
+    }
+
+    [Fact]
     public void Ledger_ASelectionThatCannotStart_IsUnavailable()
     {
         JsonElement summary = Validate(string.Empty, out int exitCode, unavailable: "no display");
@@ -399,10 +483,18 @@ public sealed class ValidationModuleTests : IDisposable
         using Process process = Process.Start(start) ?? throw new InvalidOperationException("PowerShell 7 (pwsh) is required to test the validation module.");
         Task<string> output = process.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken);
         Task<string> error = process.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
+        // One limit covers the script's exit and the end of its output, which a process it left behind could hold.
+        var limit = Stopwatch.StartNew();
         if (!process.WaitForExit(180_000))
         {
             process.Kill(entireProcessTree: true);
             throw new TimeoutException("The PowerShell test script did not finish.");
+        }
+
+        TimeSpan remaining = TimeSpan.FromSeconds(180) - limit.Elapsed;
+        if (!Task.WaitAll([output, error], (int)Math.Max(0, remaining.TotalMilliseconds), TestContext.Current.CancellationToken))
+        {
+            throw new TimeoutException("The PowerShell test script exited, but something it started still held its output open.");
         }
 
         return (process.ExitCode, output.GetAwaiter().GetResult() + error.GetAwaiter().GetResult());
