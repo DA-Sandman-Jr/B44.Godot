@@ -80,8 +80,9 @@ public sealed class ValidationModuleTests : IDisposable
             $start = [Diagnostics.ProcessStartInfo]::new($Child)
             foreach ($argument in @('-NoProfile', '-Command', 'Start-Sleep -Seconds 300')) { $start.ArgumentList.Add($argument) }
             $start.UseShellExecute = $false
-            $child = [Diagnostics.Process]::Start($start)
-            Set-Content -LiteralPath $PidFile -Value $child.Id
+            # Not $child: PowerShell names are case-insensitive, and that is the [string] parameter $Child.
+            $started = [Diagnostics.Process]::Start($start)
+            Set-Content -LiteralPath $PidFile -Value $started.Id
             'parent done'
             """);
         string output = Pass("""
@@ -93,14 +94,21 @@ public sealed class ValidationModuleTests : IDisposable
             finally {
                 $seconds = $watch.Elapsed.TotalSeconds
                 # The whole tree: a pwsh installed as a .NET tool runs PowerShell in a child process.
-                if (Test-Path -LiteralPath $pidFile) { try { [Diagnostics.Process]::GetProcessById([int](Get-Content -LiteralPath $pidFile)).Kill($true) } catch { } }
+                $cleanup = 'child not stopped'
+                if (Test-Path -LiteralPath $pidFile) {
+                    $orphan = [Diagnostics.Process]::GetProcessById([int](Get-Content -LiteralPath $pidFile))
+                    $orphan.Kill($true)
+                    $cleanup = if ($orphan.WaitForExit(30000)) { 'child stopped' } else { 'child not stopped' }
+                }
             }
             "exit=$($r.ExitCode) timedout=$($r.TimedOut) bounded=$($seconds -lt 90) output=$($r.Output.Trim())"
             "reason=$($r.TimeoutReason)"
+            $cleanup
             """);
 
         Assert.Contains("exit=0 timedout=True bounded=True output=parent done", output, StringComparison.Ordinal);
         Assert.Contains("reason=it exited, but a process it started still held its output open at its time limit", output, StringComparison.Ordinal);
+        Assert.Contains("child stopped", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -463,11 +471,16 @@ public sealed class ValidationModuleTests : IDisposable
     private (int ExitCode, string Output) Run(string body)
     {
         string script = Path.Combine(_work, "test.ps1");
+        // A failure prints its message exactly as thrown: PowerShell's error view wraps long lines to the console
+        // width, which differs between machines and would split the text a test looks for.
         File.WriteAllText(script, string.Join('\n',
             "$ErrorActionPreference = 'Stop'",
             $"Import-Module '{Module}' -Force",
             "$pwsh = (Get-Command -Name 'pwsh' -CommandType Application | Select-Object -First 1).Source",
-            body));
+            "try {",
+            body,
+            "}",
+            "catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }"));
         var start = new ProcessStartInfo("pwsh")
         {
             WorkingDirectory = _work,
