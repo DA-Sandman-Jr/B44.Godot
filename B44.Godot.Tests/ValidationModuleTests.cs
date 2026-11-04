@@ -28,8 +28,9 @@ public sealed class ValidationModuleTests : IDisposable
         string[] expected =
         [
             "Add-ValidationResult", "Assert-GodotProof", "Complete-Validation", "Get-EngineDiagnostics", "Get-GodotUserRoot",
-            "Invoke-BoundedProcess", "Invoke-GodotImport", "Invoke-ValidationProof", "Invoke-ValidationStep",
-            "Remove-ProofDirectory", "Start-Validation", "Test-GodotEngineVersion", "Write-ProofOverride",
+            "Get-PowerShellPath", "Invoke-BoundedProcess", "Invoke-GodotImport", "Invoke-ValidationProof",
+            "Invoke-ValidationStep", "Remove-ProofDirectory", "Start-Validation", "Test-GodotEngineVersion",
+            "Write-ProofOverride",
         ];
         Assert.Equal(expected, Lines(output));
     }
@@ -326,6 +327,36 @@ public sealed class ValidationModuleTests : IDisposable
         Assert.StartsWith("could not start ", Step(summary, "restore").GetProperty("Note").GetString(), StringComparison.Ordinal);
         Assert.Equal("blocked", Step(summary, "build").GetProperty("Status").GetString());
         Assert.Contains("could not start", File.ReadAllText(Path.Combine(_work, "game", "artifacts", "validation", "restore.log")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ValidationProof_PwshIsNotOnPath_RunsWithThePowerShellRunningTheModule()
+    {
+        // PowerShell launched by its absolute path, with no pwsh on PATH, still runs a proof in a PowerShell 7
+        // process of its own.
+        string empty = Directory.CreateDirectory(Path.Combine(_work, "empty-path")).FullName;
+        File.WriteAllText(Path.Combine(_work, "proof.ps1"), "param([string] $GodotPath) Write-Output \"proof ran with $GodotPath\"\n");
+        JsonElement summary = Validate($"""
+            $env:PATH = '{empty}'
+            Invoke-ValidationProof -Name 'proof' -Script (Join-Path $PWD.Path 'proof.ps1') -Godot 'stand-in-engine'
+            """, out int exitCode);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("passed", Step(summary, "proof").GetProperty("Status").GetString());
+        Assert.Contains("proof ran with stand-in-engine", File.ReadAllText(Path.Combine(_work, "game", "artifacts", "validation", "proof.log")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PowerShellPath_PwshOnPath_IsPreferred()
+    {
+        string folder = Directory.CreateDirectory(Path.Combine(_work, "on-path")).FullName;
+        string onPath = FakeExecutable(Path.Combine("on-path", "pwsh"), "stand-in");
+        string output = Pass($"""
+            $env:PATH = '{folder}'
+            Get-PowerShellPath
+            """);
+
+        Assert.Equal(onPath, output.Trim());
     }
 
     [Fact]

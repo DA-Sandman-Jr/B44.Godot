@@ -99,7 +99,9 @@ game runs proofs and reports its verdict the same way:
   recorded and reads FAILED until `Complete-Validation` decides, so a run that stops
   part way never leaves a stale or passing summary behind. `Test-GodotEngineVersion`
   checks the engine against the host's `Godot.NET.Sdk`, as the reusable smoke workflow
-  does.
+  does. `Get-PowerShellPath` names the PowerShell 7 a script step runs with: `pwsh` on
+  `PATH`, else the one beside the PowerShell running the module, which also covers a
+  PowerShell started by its full path or installed as a .NET tool.
 
 The game keeps its scopes, steps, proof scripts, fixtures and expected diagnostics.
 It locates the module through the host's restore assets, for example:

@@ -324,6 +324,15 @@ function Invoke-ValidationStep {
     else { Add-ValidationResult $Name 'passed' $watch.Elapsed.TotalSeconds $note }
 }
 
+function Get-PowerShellPath {
+    # The PowerShell 7 executable a step runs a script with: pwsh on PATH, else the one beside the PowerShell
+    # running this module. The process path is not that: a .NET global tool runs PowerShell as `dotnet pwsh.dll`.
+    # A path that does not exist fails its step as a command that could not start.
+    $command = Get-Command -Name 'pwsh' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($command) { return $command.Source }
+    return Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
+}
+
 function Invoke-ValidationProof {
     # Runs one proof script in its own PowerShell 7 process, so a failure or stop cannot leak environment
     # changes into the run, passing -GodotPath and the script's own arguments.
@@ -334,8 +343,7 @@ function Invoke-ValidationProof {
         [string[]] $Arguments = @(),
         [int] $TimeoutSeconds = 600,
         [ValidateSet('', 'Windows', 'Linux', 'MacOS')][string] $NeedsPlatform = '')
-    $pwsh = (Get-Command -Name 'pwsh' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source
-    if (-not $pwsh) { $pwsh = [Environment]::ProcessPath }
+    $pwsh = Get-PowerShellPath
     $all = @('-NoProfile', '-NonInteractive', '-File', $Script, '-GodotPath', $Godot) + $Arguments
     Invoke-ValidationStep -Name $Name -FilePath $pwsh -Arguments $all -TimeoutSeconds $TimeoutSeconds -NeedsPlatform $NeedsPlatform
 }
@@ -384,4 +392,4 @@ function Complete-Validation {
 Export-ModuleMember -Function @(
     'Get-GodotUserRoot', 'Write-ProofOverride', 'Invoke-BoundedProcess', 'Invoke-GodotImport', 'Get-EngineDiagnostics',
     'Assert-GodotProof', 'Remove-ProofDirectory', 'Test-GodotEngineVersion', 'Start-Validation', 'Add-ValidationResult',
-    'Invoke-ValidationStep', 'Invoke-ValidationProof', 'Complete-Validation')
+    'Invoke-ValidationStep', 'Invoke-ValidationProof', 'Get-PowerShellPath', 'Complete-Validation')
