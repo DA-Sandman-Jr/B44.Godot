@@ -21,3 +21,30 @@ jobs:
     uses: DA-Sandman-Jr/B44.Standards/.github/workflows/reusable-dotnet-ci.yml@9c6faefab05253a4fa1d16b971d37cc8c80bf750 # split repository + .slnx support
     with:
       test-project: B44.Godot.Tests/B44.Godot.Tests.csproj
+
+  validation-module:
+    # tools/B44.Godot.Validation.psm1 runs inside games' validators on Windows and Linux, so its contract tests
+    # run on both. The test executable prints every failure by name; `dotnet test` in the shared job above
+    # reports only a count.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Validation module contract tests
+        run: |
+          pwsh --version
+          dotnet build B44.Godot.Tests/B44.Godot.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project B44.Godot.Tests/B44.Godot.Tests.csproj -c Release --no-build -- -class B44.Godot.Tests.ValidationModuleTests
+          exit $LASTEXITCODE

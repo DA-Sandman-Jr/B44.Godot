@@ -23,6 +23,7 @@ Planned work and known defects are tracked in [`BACKLOG.md`](BACKLOG.md).
 | `B44.Godot.Smoke` | `B44SmokeRunner` | Thin `Node` shell that gathers observations and quits with a verdict |
 | `B44.Godot.Display` | `WindowPlacement`, `WindowRect`, `WindowSize` | Godot-free rules for where a window returns from fullscreen and how a startup window fits its screen |
 | `B44.Godot.Display` | `WindowModeSwitcher` | Thin shell that switches a window between fullscreen and its remembered windowed mode, and fits a startup window to its screen |
+| `tools/B44.Godot.Validation.psm1` | PowerShell 7 module | Bounded engine launches, the proof verdict, isolated user directories, and the validation ledger and exit codes games' `validate.ps1` scripts share |
 
 ## Window mode
 
@@ -69,6 +70,51 @@ The workflow asserts on a standardized marker line and the process exit code.
 That contract is owned here — games conform to it rather than inventing their
 own, because three games with three protocols is the duplication this package
 exists to prevent.
+
+## Local validation module
+
+The package carries `tools/B44.Godot.Validation.psm1`, a PowerShell 7 module that
+NuGet never adds to a build. A game imports it from its restored package, so every
+game runs proofs and reports its verdict the same way:
+
+- **Proof runner.** `Invoke-BoundedProcess` passes arguments without shell quoting and
+  reads both pipes as the process runs. One wall-clock limit bounds its exit and the end
+  of its output together: a process still running at the limit is stopped with its
+  tree, and one that exits while something it started holds its output open is not
+  waited for. Either way the result is a timeout that says which, with the output
+  read so far.
+  `Assert-GodotProof` passes a run only with exit code zero, its completion marker,
+  and no `ERROR:`, `WARNING:`, `SCRIPT ERROR:`, `USER ERROR:` or `USER WARNING:`
+  line beyond the ones the proof declares, each with an exact count.
+  `Write-ProofOverride`, `Get-GodotUserRoot` and `Remove-ProofDirectory` isolate and
+  clean up a run's Godot user directory; `Invoke-GodotImport` imports once.
+- **Validation ledger.** `Start-Validation`, `Invoke-ValidationStep`,
+  `Invoke-ValidationProof`, `Add-ValidationResult` and `Complete-Validation` record
+  one run's steps and write `summary.md` and `summary.json`. Each verdict has its
+  own exit code and only 0 proves the selection: 0 PASSED, 1 FAILED, 2 UNAVAILABLE
+  (it could not start here) and 3 INCOMPLETE (nothing failed, but a required step
+  cannot run on this platform). A failed step outranks every other verdict, including
+  a later `Complete-Validation -Unavailable`. A step whose command cannot start is a
+  failed step, not the end of the run. The summary is rewritten as each step is
+  recorded and reads FAILED until `Complete-Validation` decides, so a run that stops
+  part way never leaves a stale or passing summary behind. `Test-GodotEngineVersion`
+  checks the engine against the host's `Godot.NET.Sdk`, as the reusable smoke workflow
+  does. `Get-PowerShellPath` names the PowerShell 7 a script step runs with: `pwsh` on
+  `PATH`, else the one beside the PowerShell running the module, which also covers a
+  PowerShell started by its full path or installed as a .NET tool.
+
+The game keeps its scopes, steps, proof scripts, fixtures and expected diagnostics.
+It locates the module through the host's restore assets, for example:
+
+```powershell
+$assets = Get-Content '.godot/mono/temp/obj/project.assets.json' -Raw | ConvertFrom-Json -AsHashtable
+$library = @($assets['libraries'].Keys | Where-Object { $_ -like 'B44.Godot/*' })[0]
+$folder = @($assets['packageFolders'].Keys)[0]
+Import-Module (Join-Path $folder $assets['libraries'][$library]['path'] 'tools/B44.Godot.Validation.psm1')
+```
+
+Because the module arrives with the package, a validator restores the host first
+and writes its own summary if that bootstrap fails.
 
 ## UID sidecars
 

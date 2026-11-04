@@ -94,5 +94,8 @@
     <None Include="../README.md" Pack="true" PackagePath="\" />
     <None Include="../LICENSE" Pack="true" PackagePath="\" />
     <None Include="../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" />
+    <!-- The PowerShell validation module games import from the restored package
+         (tools/ is never added to a consumer's build). Not compiled here. -->
+    <None Update="Validation/B44.Godot.Validation.psm1" Pack="true" PackagePath="tools/B44.Godot.Validation.psm1" />
   </ItemGroup>
 </Project>
